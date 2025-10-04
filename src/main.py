@@ -53,10 +53,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         debug=settings.debug
     )
     
-    # TODO: Initialize Azure services
-    # - Azure OpenAI client
-    # - Azure Cognitive Search client
-    # - Azure Cosmos DB client
+    # Initialize Azure services
+    from src.services.ai_service import AzureOpenAIService
+    import src.api.endpoints.chat as chat_module
+    
+    try:
+        # Initialize AI service globally
+        if chat_module._ai_service is None:
+            chat_module._ai_service = AzureOpenAIService(settings)
+            await chat_module._ai_service.__aenter__()
+            logger.info("Azure OpenAI service initialized")
+    except Exception as e:
+        logger.error("Failed to initialize AI service", error=str(e))
+        # Don't fail startup - service will handle connection issues gracefully
     
     logger.info("Application startup complete")
     
@@ -65,9 +74,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     logger.info("Shutting down application")
     
-    # TODO: Cleanup resources
-    # - Close database connections
-    # - Clean up async clients
+    # Cleanup resources
+    if chat_module._ai_service:
+        try:
+            await chat_module._ai_service.__aexit__(None, None, None)
+            logger.info("AI service cleaned up")
+        except Exception as e:
+            logger.error("Error cleaning up AI service", error=str(e))
     
     logger.info("Application shutdown complete")
 
@@ -153,10 +166,9 @@ def create_app() -> FastAPI:
         return response
     
     # Register routers
-    # TODO: Add routers when we create them
-    # from src.api.endpoints import chat, health
-    # app.include_router(health.router, prefix="/api/v1", tags=["health"])
-    # app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+    from src.api.endpoints import chat, health
+    app.include_router(health.router, prefix="/api/v1", tags=["health"])
+    app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
     
     return app
 
