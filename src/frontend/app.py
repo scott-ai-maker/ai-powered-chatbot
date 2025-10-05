@@ -16,6 +16,7 @@ Features:
 
 import asyncio
 import json
+import os
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -202,7 +203,13 @@ st.markdown("""
 class ChatbotClient:
     """Client for communicating with the FastAPI backend."""
     
-    def __init__(self, base_url: str = "http://localhost:8001"):
+    def __init__(self, base_url: str = None):
+        # Use environment variable for production, fallback to localhost for development
+        if base_url is None:
+            base_url = os.getenv(
+                "API_BASE_URL", 
+                "https://ai-career-mentor-prod-app.agreeablecoast-963be1b8.eastus2.azurecontainerapps.io"
+            )
         self.base_url = base_url
         self.session = None
     

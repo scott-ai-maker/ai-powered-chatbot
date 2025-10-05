@@ -57,15 +57,11 @@ async def get_rag_service(
     """Dependency to get RAG service instance."""
     global _rag_service, _search_service
     if _rag_service is None:
-        # Initialize search service first
-        _search_service = AzureCognitiveSearchService(settings)
-        await _search_service.initialize_index()
+        # Initialize RAG service (it will create its own search service)
+        _rag_service = RAGEnhancedAIService(settings=settings)
         
-        # Initialize RAG service
-        _rag_service = RAGEnhancedAIService(
-            settings=settings,
-            search_service=_search_service
-        )
+        # Initialize the search index
+        await _rag_service.search_service.initialize_index()
     return _rag_service
 
 

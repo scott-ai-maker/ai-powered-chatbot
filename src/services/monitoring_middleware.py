@@ -42,10 +42,19 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
     - Business metrics and user analytics
     """
     
-    def __init__(self, app: FastAPI):
+    def __init__(self, app):
         super().__init__(app)
-        self.settings = get_settings_dependency()
-        self.monitoring = get_monitoring_service(self.settings)
+        self._monitoring = None
+        self._settings = None
+    
+    @property 
+    def monitoring(self):
+        """Lazy load monitoring service."""
+        if self._monitoring is None:
+            if self._settings is None:
+                self._settings = get_settings_dependency()
+            self._monitoring = get_monitoring_service(self._settings)
+        return self._monitoring
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request and collect monitoring metrics."""

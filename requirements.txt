@@ -14,6 +14,7 @@ azure-cosmos==4.5.1
 # Async support
 httpx==0.25.2
 aiofiles==23.2.1
+aiohttp==3.9.1
 
 # Frontend
 streamlit==1.28.2
@@ -26,7 +27,7 @@ structlog==23.2.0
 tenacity==8.2.3
 
 # Security
-cryptography==41.0.8
+cryptography>=41.0.7
 
 # Monitoring and observability
 azure-monitor-opentelemetry==1.2.0

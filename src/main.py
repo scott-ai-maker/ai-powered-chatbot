@@ -54,9 +54,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         debug=settings.debug
     )
     
-    # Initialize monitoring service
-    monitoring = get_monitoring_service(settings)
-    logger.info("Monitoring service initialized")
+    # Initialize monitoring service - TEMPORARILY DISABLED
+    # monitoring = get_monitoring_service(settings)
+    # logger.info("Monitoring service initialized")
+    monitoring = None
+    logger.warning("Monitoring service temporarily disabled")
     
     # Initialize Azure services
     from src.services.ai_service import AzureOpenAIService
@@ -89,7 +91,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Don't fail startup - services will handle connection issues gracefully
     
     # Record startup metrics
-    monitoring.record_business_metric("application_starts", 1.0, tags={"version": settings.app_version})
+    # monitoring.record_business_metric("application_starts", 1.0, tags={"version": settings.app_version})
     
     logger.info("Application startup complete")
     
@@ -134,12 +136,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
     
-    # Configure monitoring middleware (before CORS)
-    try:
-        from src.services.monitoring_middleware import add_monitoring_middleware
-        add_monitoring_middleware(app)
-    except ImportError:
-        logger.warning("Monitoring middleware not available - continuing without it")
+    # Configure monitoring middleware (before CORS) - TEMPORARILY DISABLED
+    # try:
+    #     from src.services.monitoring_middleware import add_monitoring_middleware
+    #     add_monitoring_middleware(app)
+    # except ImportError:
+    #     logger.warning("Monitoring middleware not available - continuing without it")
+    logger.warning("Monitoring middleware temporarily disabled")
     
     # Configure CORS
     app.add_middleware(
@@ -208,13 +211,14 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
     
-    # Add monitoring dashboard
-    try:
-        from src.services.monitoring_dashboard import router as dashboard_router
-        app.include_router(dashboard_router, prefix="/monitoring", tags=["monitoring"])
-        logger.info("Monitoring dashboard registered")
-    except ImportError:
-        logger.warning("Monitoring dashboard not available")
+    # Add monitoring dashboard - TEMPORARILY DISABLED
+    # try:
+    #     from src.services.monitoring_dashboard import router as dashboard_router
+    #     app.include_router(dashboard_router, prefix="/monitoring", tags=["monitoring"])
+    #     logger.info("Monitoring dashboard registered")
+    # except ImportError:
+    #     logger.warning("Monitoring dashboard not available")
+    logger.warning("Monitoring dashboard temporarily disabled")
     
     return app
 
