@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+markers = [
+    "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "external: marks tests as requiring external services (deselect with '-m \"not external\"')",
+    "performance: marks tests as performance tests (deselect with '-m \"not performance\"')"
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
