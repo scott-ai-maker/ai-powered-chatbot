@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 import structlog
 
 from src.config.settings import get_settings
+from src.services.monitoring_service import get_monitoring_service
 
 
 # Configure structured logging
@@ -53,6 +54,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         debug=settings.debug
     )
     
+    # Initialize monitoring service
+    monitoring = get_monitoring_service(settings)
+    logger.info("Monitoring service initialized")
+    
     # Initialize Azure services
     from src.services.ai_service import AzureOpenAIService
     from src.services.search_service import AzureCognitiveSearchService
@@ -82,6 +87,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error("Failed to initialize Azure services", error=str(e))
         # Don't fail startup - services will handle connection issues gracefully
+    
+    # Record startup metrics
+    monitoring.record_business_metric("application_starts", 1.0, tags={"version": settings.app_version})
     
     logger.info("Application startup complete")
     
@@ -125,6 +133,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan
     )
+    
+    # Configure monitoring middleware (before CORS)
+    try:
+        from src.services.monitoring_middleware import add_monitoring_middleware
+        add_monitoring_middleware(app)
+    except ImportError:
+        logger.warning("Monitoring middleware not available - continuing without it")
     
     # Configure CORS
     app.add_middleware(
@@ -192,6 +207,14 @@ def create_app() -> FastAPI:
     from src.api.endpoints import chat, health
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+    
+    # Add monitoring dashboard
+    try:
+        from src.services.monitoring_dashboard import router as dashboard_router
+        app.include_router(dashboard_router, prefix="/monitoring", tags=["monitoring"])
+        logger.info("Monitoring dashboard registered")
+    except ImportError:
+        logger.warning("Monitoring dashboard not available")
     
     return app
 

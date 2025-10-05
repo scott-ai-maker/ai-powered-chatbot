@@ -26,6 +26,8 @@ from src.models.rag_models import RAGResponse, SearchQuery
 from src.services.ai_service import AzureOpenAIService
 from src.services.rag_service import RAGEnhancedAIService
 from src.services.search_service import AzureCognitiveSearchService
+from src.services.monitoring_service import get_monitoring_service
+from src.services.monitoring_middleware import ChatMetricsCollector
 
 
 logger = structlog.get_logger()

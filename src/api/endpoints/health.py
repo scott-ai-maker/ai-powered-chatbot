@@ -14,6 +14,7 @@ import structlog
 from src.config.settings import Settings, get_settings_dependency
 from src.models.chat_models import HealthCheckResponse
 from src.services.ai_service import AzureOpenAIService
+from src.services.monitoring_service import get_monitoring_service
 
 
 logger = structlog.get_logger()
@@ -91,6 +92,7 @@ async def detailed_health_check(
     - Application basic functionality
     - Azure OpenAI connectivity
     - Database connectivity (when implemented)
+    - Monitoring system health
     - Overall system health
     
     Used by:
@@ -98,6 +100,8 @@ async def detailed_health_check(
     - Debugging and diagnostics
     - Administrative oversight
     """
+    monitoring = get_monitoring_service(settings)
+    
     try:
         # Test Azure OpenAI connectivity
         azure_openai_status = "disconnected"
@@ -114,6 +118,9 @@ async def detailed_health_check(
         # Database status (placeholder - implement when database is added)
         database_status = "connected"  # Will be actual check later
         
+        # Get monitoring health metrics
+        monitoring_metrics = await monitoring.get_health_metrics()
+        
         # Determine overall status
         if azure_openai_status == "connected" and database_status == "connected":
             overall_status = "healthy"
@@ -128,8 +135,8 @@ async def detailed_health_check(
             version=settings.app_version,
             azure_openai_status=azure_openai_status,
             database_status=database_status,
-            response_time_ms=None,  # Could track average response time
-            active_conversations=None  # Could track active sessions
+            response_time_ms=monitoring_metrics.get("uptime_seconds", 0) * 1000,
+            active_conversations=monitoring_metrics.get("metrics_summary", {}).get("sample_metrics", {}).get("chat_requests", 0)
         )
         
     except Exception as e:
@@ -152,6 +159,53 @@ async def liveness_probe() -> Dict[str, Any]:
         "status": "alive",
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@router.get("/health/metrics")
+async def metrics_endpoint(
+    settings: Settings = Depends(get_settings_dependency)
+) -> Dict[str, Any]:
+    """
+    Metrics endpoint for monitoring systems.
+    
+    Returns comprehensive application metrics including:
+    - Performance metrics
+    - Business KPIs
+    - Error rates
+    - System health indicators
+    
+    Used by:
+    - Prometheus/Grafana
+    - Azure Monitor
+    - Custom monitoring dashboards
+    """
+    monitoring = get_monitoring_service(settings)
+    
+    try:
+        # Get comprehensive metrics
+        health_metrics = await monitoring.get_health_metrics()
+        metrics_export = await monitoring.get_metrics_export()
+        
+        return {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "service": "ai-career-mentor",
+            "version": settings.app_version,
+            "environment": settings.environment,
+            "health": health_metrics,
+            "detailed_metrics": metrics_export.get("metrics", {}),
+            "collection_status": {
+                "enabled": True,
+                "application_insights": bool(settings.applicationinsights_connection_string),
+                "in_memory_fallback": True
+            }
+        }
+        
+    except Exception as e:
+        logger.error("Failed to get metrics", error=str(e))
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics temporarily unavailable"
+        )
 
 
 @router.get("/health/ready")
