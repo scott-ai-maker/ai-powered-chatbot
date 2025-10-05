@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "ai-career-mentor"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "East US 2"
+    },
+    "imageTag": {
+      "value": "latest"
+    },
+    "adminEmail": {
+      "value": "admin@example.com"
+    },
+    "openAiModelName": {
+      "value": "gpt-4"
+    },
+    "openAiEmbeddingModelName": {
+      "value": "text-embedding-ada-002"
+    }
+  }
+}

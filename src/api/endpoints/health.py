@@ -20,12 +20,72 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.get("/health", response_model=HealthCheckResponse)
-async def health_check(
+@router.get("/health")
+async def health_check() -> Dict[str, Any]:
+    """
+    Basic health check endpoint for Azure Container Apps.
+    
+    Returns HTTP 200 if the service is running and can handle requests.
+    This endpoint is used by:
+    - Azure Container Apps health probes
+    - Load balancers
+    - Monitoring systems
+    - Docker health checks
+    """
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "service": "AI Career Mentor Chatbot",
+        "version": "1.0.0"
+    }
+
+
+@router.get("/health/ready")
+async def readiness_check(
+    settings: Settings = Depends(get_settings_dependency)
+) -> Dict[str, Any]:
+    """
+    Readiness check endpoint for Azure Container Apps.
+    
+    Returns HTTP 200 if the service is ready to handle requests.
+    Checks that all required dependencies are configured.
+    """
+    try:
+        # Check critical configuration
+        checks = {
+            "config_loaded": True,
+            "azure_openai_configured": bool(settings.azure_openai_endpoint and settings.azure_openai_key),
+            "azure_search_configured": bool(settings.azure_search_endpoint and settings.azure_search_key),
+            "cosmos_db_configured": bool(settings.azure_cosmos_endpoint and settings.azure_cosmos_key),
+        }
+        
+        # Determine overall readiness
+        all_ready = all(checks.values())
+        
+        response = {
+            "status": "ready" if all_ready else "not_ready",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "service": "AI Career Mentor Chatbot",
+            "checks": checks
+        }
+        
+        if not all_ready:
+            logger.warning("Service not ready", checks=checks)
+            return response
+        
+        return response
+        
+    except Exception as e:
+        logger.error("Readiness check failed", error=str(e))
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+
+@router.get("/health/detailed", response_model=HealthCheckResponse)
+async def detailed_health_check(
     settings: Settings = Depends(get_settings_dependency)
 ) -> HealthCheckResponse:
     """
-    Comprehensive health check endpoint.
+    Comprehensive health check endpoint with full diagnostics.
     
     This endpoint checks:
     - Application basic functionality
@@ -34,9 +94,9 @@ async def health_check(
     - Overall system health
     
     Used by:
-    - Load balancers for routing decisions
-    - Monitoring systems for alerting
-    - Container orchestrators for restart decisions
+    - Monitoring dashboards
+    - Debugging and diagnostics
+    - Administrative oversight
     """
     try:
         # Test Azure OpenAI connectivity
