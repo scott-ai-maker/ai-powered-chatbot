@@ -55,6 +55,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Initialize Azure services
     from src.services.ai_service import AzureOpenAIService
+    from src.services.search_service import AzureCognitiveSearchService
+    from src.services.rag_service import RAGEnhancedAIService
     import src.api.endpoints.chat as chat_module
     
     try:
@@ -63,9 +65,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             chat_module._ai_service = AzureOpenAIService(settings)
             await chat_module._ai_service.__aenter__()
             logger.info("Azure OpenAI service initialized")
+            
+        # Initialize search service and RAG service
+        if chat_module._search_service is None:
+            chat_module._search_service = AzureCognitiveSearchService(settings)
+            await chat_module._search_service.initialize_index()
+            logger.info("Azure Cognitive Search service initialized")
+            
+        if chat_module._rag_service is None:
+            chat_module._rag_service = RAGEnhancedAIService(
+                settings=settings,
+                search_service=chat_module._search_service
+            )
+            logger.info("RAG-enhanced AI service initialized")
+            
     except Exception as e:
-        logger.error("Failed to initialize AI service", error=str(e))
-        # Don't fail startup - service will handle connection issues gracefully
+        logger.error("Failed to initialize Azure services", error=str(e))
+        # Don't fail startup - services will handle connection issues gracefully
     
     logger.info("Application startup complete")
     
@@ -81,6 +97,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("AI service cleaned up")
         except Exception as e:
             logger.error("Error cleaning up AI service", error=str(e))
+    
+    if chat_module._search_service:
+        try:
+            await chat_module._search_service.close()
+            logger.info("Search service cleaned up")
+        except Exception as e:
+            logger.error("Error cleaning up search service", error=str(e))
     
     logger.info("Application shutdown complete")
 

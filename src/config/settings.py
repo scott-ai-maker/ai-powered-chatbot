@@ -49,6 +49,18 @@ class Settings(BaseSettings):
         env="AZURE_SEARCH_INDEX_NAME"
     )
     
+    # RAG Configuration
+    rag_max_search_results: int = Field(default=5, env="RAG_MAX_SEARCH_RESULTS")
+    rag_min_confidence_score: float = Field(default=0.7, env="RAG_MIN_CONFIDENCE_SCORE")
+    rag_enable_by_default: bool = Field(default=True, env="RAG_ENABLE_BY_DEFAULT")
+    
+    # Embedding Configuration  
+    azure_openai_embedding_deployment: str = Field(
+        default="text-embedding-ada-002",
+        env="AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
+    )
+    embedding_dimensions: int = Field(default=1536, env="EMBEDDING_DIMENSIONS")
+    
     # Azure Cosmos DB Configuration
     azure_cosmos_endpoint: str = Field(..., env="AZURE_COSMOS_ENDPOINT")
     azure_cosmos_key: str = Field(..., env="AZURE_COSMOS_KEY")
@@ -97,6 +109,20 @@ class Settings(BaseSettings):
         """Validate temperature is between 0 and 2."""
         if not 0 <= v <= 2:
             raise ValueError("Temperature must be between 0 and 2")
+        return v
+    
+    @validator("rag_min_confidence_score")
+    def validate_rag_confidence(cls, v):
+        """Validate RAG confidence score is between 0 and 1."""
+        if not 0 <= v <= 1:
+            raise ValueError("RAG confidence score must be between 0 and 1")
+        return v
+    
+    @validator("rag_max_search_results")
+    def validate_rag_max_results(cls, v):
+        """Validate RAG max search results is reasonable."""
+        if not 1 <= v <= 20:
+            raise ValueError("RAG max search results must be between 1 and 20")
         return v
     
     class Config:
