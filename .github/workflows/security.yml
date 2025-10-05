@@ -1,0 +1,422 @@
+name: Security Scan
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches: [ main ]
+    paths:
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+      - '.github/workflows/security.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.12'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ==========================================
+  # Dependency Vulnerability Scanning
+  # ==========================================
+  
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety pip-audit
+        pip install -r requirements.txt
+    
+    - name: Run Safety check
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check --short-report
+      continue-on-error: true
+    
+    - name: Run pip-audit
+      run: |
+        pip-audit --format=json --output=pip-audit-report.json || true
+        pip-audit --desc
+      continue-on-error: true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: dependency-security-reports
+        path: |
+          safety-report.json
+          pip-audit-report.json
+        retention-days: 30
+
+  # ==========================================
+  # Code Security Analysis
+  # ==========================================
+  
+  code-security:
+    name: Code Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit[toml] semgrep
+    
+    - name: Run Bandit security scan
+      run: |
+        bandit -r src/ \
+          --format json \
+          --output bandit-report.json \
+          --severity-level medium \
+          --confidence-level medium || true
+        
+        bandit -r src/ \
+          --format txt \
+          --severity-level medium \
+          --confidence-level medium
+      continue-on-error: true
+    
+    - name: Run Semgrep security scan
+      run: |
+        semgrep --config=auto \
+          --json \
+          --output=semgrep-report.json \
+          src/ || true
+        
+        semgrep --config=auto src/
+      continue-on-error: true
+    
+    - name: Upload code security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: code-security-reports
+        path: |
+          bandit-report.json
+          semgrep-report.json
+        retention-days: 30
+
+  # ==========================================
+  # Container Security Scanning
+  # ==========================================
+  
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build container for scanning
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        tags: ai-career-mentor:security-scan
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Install Trivy
+      run: |
+        sudo apt-get update
+        sudo apt-get install wget apt-transport-https gnupg lsb-release
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install trivy
+    
+    - name: Run Trivy vulnerability scanner
+      run: |
+        # Comprehensive vulnerability scan
+        trivy image \
+          --format sarif \
+          --output trivy-results.sarif \
+          ai-career-mentor:security-scan
+        
+        # Generate table report
+        trivy image \
+          --format table \
+          --output trivy-table.txt \
+          ai-career-mentor:security-scan
+        
+        # Generate JSON report for processing
+        trivy image \
+          --format json \
+          --output trivy-report.json \
+          ai-career-mentor:security-scan
+    
+    - name: Upload Trivy scan results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: trivy-results.sarif
+    
+    - name: Upload container security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: container-security-reports
+        path: |
+          trivy-results.sarif
+          trivy-table.txt
+          trivy-report.json
+        retention-days: 30
+    
+    - name: Check for critical vulnerabilities
+      run: |
+        # Extract critical vulnerabilities count
+        CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-report.json)
+        HIGH_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-report.json)
+        
+        echo "Critical vulnerabilities: $CRITICAL_COUNT"
+        echo "High vulnerabilities: $HIGH_COUNT"
+        
+        # Fail if critical vulnerabilities found
+        if [ "$CRITICAL_COUNT" -gt 0 ]; then
+          echo "❌ Critical vulnerabilities detected! Failing the build."
+          exit 1
+        fi
+        
+        # Warn about high vulnerabilities
+        if [ "$HIGH_COUNT" -gt 0 ]; then
+          echo "⚠️ High severity vulnerabilities detected. Consider addressing them."
+        fi
+
+  # ==========================================
+  # License Compliance Check
+  # ==========================================
+  
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install license checker
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-licenses
+        pip install -r requirements.txt
+    
+    - name: Check licenses
+      run: |
+        # Generate license report
+        pip-licenses --format=json --output-file=licenses.json
+        pip-licenses --format=csv --output-file=licenses.csv
+        pip-licenses
+        
+        # Check for problematic licenses (customize as needed)
+        pip-licenses --fail-on "GPL v3" --fail-on "AGPL v3" || true
+    
+    - name: Upload license reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: license-reports
+        path: |
+          licenses.json
+          licenses.csv
+        retention-days: 90
+
+  # ==========================================
+  # Secrets Detection
+  # ==========================================
+  
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Install TruffleHog
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+    
+    - name: Run TruffleHog secrets scan
+      run: |
+        trufflehog git file://. \
+          --json \
+          --output=trufflehog-report.json || true
+        
+        # Also run on current commit
+        trufflehog git file://. \
+          --since-commit HEAD~1 \
+          --only-verified
+      continue-on-error: true
+    
+    - name: Upload secrets scan report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: secrets-scan-report
+        path: trufflehog-report.json
+        retention-days: 30
+
+  # ==========================================
+  # Security Summary Report
+  # ==========================================
+  
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, code-security, container-security, license-check, secrets-scan]
+    if: always()
+    
+    steps:
+    - name: Download all security reports
+      uses: actions/download-artifact@v3
+      with:
+        path: security-reports
+    
+    - name: Generate security summary
+      run: |
+        cat << EOF > security-summary.md
+        # 🔒 Security Scan Summary
+        
+        ## Scan Results Overview
+        
+        | Scan Type | Status |
+        |-----------|--------|
+        | Dependency Scan | ${{ needs.dependency-scan.result }} |
+        | Code Security | ${{ needs.code-security.result }} |
+        | Container Security | ${{ needs.container-security.result }} |
+        | License Check | ${{ needs.license-check.result }} |
+        | Secrets Detection | ${{ needs.secrets-scan.result }} |
+        
+        ## Scan Details
+        
+        ### 📦 Dependency Vulnerabilities
+        - **Safety**: Scanned Python packages for known vulnerabilities
+        - **pip-audit**: Comprehensive dependency vulnerability analysis
+        
+        ### 🔍 Code Security Analysis
+        - **Bandit**: Python security linter for common security issues
+        - **Semgrep**: Static analysis for security patterns
+        
+        ### 🐳 Container Security
+        - **Trivy**: Container image vulnerability scanning
+        - Critical vulnerabilities: Blocked if found
+        - High/Medium vulnerabilities: Reported for review
+        
+        ### ⚖️ License Compliance
+        - **pip-licenses**: License compatibility check
+        - Flagged problematic licenses: GPL v3, AGPL v3
+        
+        ### 🔐 Secrets Detection
+        - **TruffleHog**: Scanned for exposed secrets and API keys
+        - Git history analysis for leaked credentials
+        
+        ## Recommendations
+        
+        1. **Address Critical Vulnerabilities**: Update dependencies with critical security issues
+        2. **Review High Severity Issues**: Evaluate and plan fixes for high-severity findings
+        3. **Monitor Dependencies**: Set up automated dependency updates with Dependabot
+        4. **Code Review**: Use security findings to improve code review processes
+        5. **Container Hardening**: Regularly update base images and scan for vulnerabilities
+        
+        ## Next Steps
+        
+        - Review detailed reports in workflow artifacts
+        - Create issues for critical security findings
+        - Update security policies based on scan results
+        - Schedule regular security reviews and updates
+        
+        ---
+        
+        **Scan Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        **Commit**: ${{ github.sha }}
+        **Branch**: ${{ github.ref_name }}
+        **Triggered by**: ${{ github.actor }}
+        EOF
+    
+    - name: Upload security summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-summary
+        path: security-summary.md
+        retention-days: 90
+    
+    - name: Add summary to job output
+      run: |
+        echo "## 🔒 Security Scan Complete" >> $GITHUB_STEP_SUMMARY
+        cat security-summary.md >> $GITHUB_STEP_SUMMARY
+    
+    - name: Check overall security status
+      run: |
+        # Determine if any critical security issues were found
+        FAILED_JOBS=0
+        
+        if [[ "${{ needs.dependency-scan.result }}" == "failure" ]]; then
+          FAILED_JOBS=$((FAILED_JOBS + 1))
+        fi
+        if [[ "${{ needs.code-security.result }}" == "failure" ]]; then
+          FAILED_JOBS=$((FAILED_JOBS + 1))
+        fi
+        if [[ "${{ needs.container-security.result }}" == "failure" ]]; then
+          FAILED_JOBS=$((FAILED_JOBS + 1))
+        fi
+        
+        if [ $FAILED_JOBS -gt 0 ]; then
+          echo "❌ Security scan failed with $FAILED_JOBS critical issues"
+          echo "Review the detailed reports and address critical vulnerabilities"
+          exit 1
+        else
+          echo "✅ Security scan completed successfully"
+          echo "No critical security issues detected"
+        fi

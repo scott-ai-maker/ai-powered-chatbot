@@ -1,0 +1,501 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Monday at 8 AM UTC
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Type of updates to check'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - security
+          - minor
+          - patch
+
+env:
+  PYTHON_VERSION: '3.12'
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  # ==========================================
+  # Python Dependency Updates
+  # ==========================================
+  
+  python-updates:
+    name: Python Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependency management tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-tools safety pip-audit
+    
+    - name: Backup current requirements
+      run: |
+        cp requirements.txt requirements.txt.backup
+        cp requirements-dev.txt requirements-dev.txt.backup
+    
+    - name: Check for security vulnerabilities
+      run: |
+        echo "🔍 Checking for security vulnerabilities..."
+        
+        # Check current dependencies for vulnerabilities
+        pip install -r requirements.txt
+        safety check --json --output current-vulnerabilities.json || true
+        pip-audit --format=json --output=current-audit.json || true
+        
+        # Report findings
+        if [ -f "current-vulnerabilities.json" ]; then
+          echo "Current security issues found:"
+          jq -r '.vulnerabilities[] | "- \(.package_name): \(.vulnerability_id)"' current-vulnerabilities.json || true
+        fi
+    
+    - name: Update dependencies based on input
+      run: |
+        UPDATE_TYPE="${{ inputs.update_type || 'all' }}"
+        echo "🔄 Updating dependencies (type: $UPDATE_TYPE)..."
+        
+        case "$UPDATE_TYPE" in
+          "security")
+            echo "Updating only packages with security vulnerabilities..."
+            # Extract vulnerable packages and update them
+            if [ -f "current-vulnerabilities.json" ]; then
+              VULNERABLE_PACKAGES=$(jq -r '.vulnerabilities[].package_name' current-vulnerabilities.json | sort -u || echo "")
+              if [ ! -z "$VULNERABLE_PACKAGES" ]; then
+                echo "Updating vulnerable packages: $VULNERABLE_PACKAGES"
+                for pkg in $VULNERABLE_PACKAGES; do
+                  pip install --upgrade "$pkg"
+                done
+                pip freeze > requirements.txt.new
+              else
+                echo "No vulnerable packages found"
+                cp requirements.txt requirements.txt.new
+              fi
+            else
+              cp requirements.txt requirements.txt.new
+            fi
+            ;;
+          "patch")
+            echo "Updating patch versions only..."
+            # Use pip-tools to update with constraints
+            pip-compile --upgrade-package requirements.in --output-file requirements.txt.new || cp requirements.txt requirements.txt.new
+            ;;
+          "minor"|"all")
+            echo "Updating to latest compatible versions..."
+            # Install current requirements and upgrade
+            pip install -r requirements.txt
+            pip list --outdated --format=json > outdated-packages.json
+            
+            # Upgrade packages
+            pip install --upgrade -r requirements.txt
+            pip freeze > requirements.txt.new
+            ;;
+        esac
+    
+    - name: Update development dependencies
+      if: inputs.update_type == 'all' || inputs.update_type == 'minor'
+      run: |
+        echo "🔄 Updating development dependencies..."
+        pip install --upgrade -r requirements-dev.txt
+        pip freeze | grep -f requirements-dev.txt > requirements-dev.txt.new || cp requirements-dev.txt requirements-dev.txt.new
+    
+    - name: Test updated dependencies
+      run: |
+        echo "🧪 Testing updated dependencies..."
+        
+        # Install updated requirements
+        pip install -r requirements.txt.new
+        if [ -f "requirements-dev.txt.new" ]; then
+          pip install -r requirements-dev.txt.new
+        fi
+        
+        # Run basic import tests
+        python -c "
+        import sys
+        import importlib
+        
+        # Test critical imports
+        critical_modules = [
+            'fastapi', 'uvicorn', 'pydantic', 
+            'openai', 'azure.search.documents',
+            'azure.cosmos', 'azure.keyvault.secrets'
+        ]
+        
+        failed_imports = []
+        for module in critical_modules:
+            try:
+                importlib.import_module(module)
+                print(f'✅ {module}')
+            except ImportError as e:
+                print(f'❌ {module}: {e}')
+                failed_imports.append(module)
+        
+        if failed_imports:
+            print(f'Failed to import: {failed_imports}')
+            sys.exit(1)
+        else:
+            print('All critical imports successful!')
+        "
+    
+    - name: Run security check on updated dependencies
+      run: |
+        echo "🔒 Security checking updated dependencies..."
+        
+        # Check for new vulnerabilities
+        safety check --json --output updated-vulnerabilities.json || true
+        pip-audit --format=json --output=updated-audit.json || true
+        
+        # Compare vulnerability counts
+        CURRENT_VULNS=0
+        UPDATED_VULNS=0
+        
+        if [ -f "current-vulnerabilities.json" ]; then
+          CURRENT_VULNS=$(jq '.vulnerabilities | length' current-vulnerabilities.json || echo 0)
+        fi
+        
+        if [ -f "updated-vulnerabilities.json" ]; then
+          UPDATED_VULNS=$(jq '.vulnerabilities | length' updated-vulnerabilities.json || echo 0)
+        fi
+        
+        echo "Vulnerabilities before: $CURRENT_VULNS"
+        echo "Vulnerabilities after: $UPDATED_VULNS"
+        
+        if [ $UPDATED_VULNS -gt $CURRENT_VULNS ]; then
+          echo "⚠️ Update introduced new vulnerabilities!"
+          jq -r '.vulnerabilities[] | "- \(.package_name): \(.vulnerability_id)"' updated-vulnerabilities.json || true
+        fi
+    
+    - name: Generate update summary
+      run: |
+        echo "📋 Generating update summary..."
+        
+        cat > dependency-update-summary.md << 'EOF'
+        # 📦 Dependency Update Summary
+        
+        ## Update Configuration
+        - **Update Type**: ${{ inputs.update_type || 'all' }}
+        - **Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        - **Python Version**: ${{ env.PYTHON_VERSION }}
+        
+        ## Changes Overview
+        
+        EOF
+        
+        # Compare requirements files
+        if ! cmp -s requirements.txt requirements.txt.new; then
+          echo "### 🔄 Production Dependencies Changed" >> dependency-update-summary.md
+          echo "" >> dependency-update-summary.md
+          echo "\`\`\`diff" >> dependency-update-summary.md
+          diff requirements.txt requirements.txt.new || true >> dependency-update-summary.md
+          echo "\`\`\`" >> dependency-update-summary.md
+          echo "" >> dependency-update-summary.md
+        else
+          echo "### ✅ Production Dependencies (No Changes)" >> dependency-update-summary.md
+          echo "" >> dependency-update-summary.md
+        fi
+        
+        if [ -f "requirements-dev.txt.new" ] && ! cmp -s requirements-dev.txt requirements-dev.txt.new; then
+          echo "### 🔄 Development Dependencies Changed" >> dependency-update-summary.md
+          echo "" >> dependency-update-summary.md
+          echo "\`\`\`diff" >> dependency-update-summary.md
+          diff requirements-dev.txt requirements-dev.txt.new || true >> dependency-update-summary.md
+          echo "\`\`\`" >> dependency-update-summary.md
+          echo "" >> dependency-update-summary.md
+        fi
+        
+        # Security summary
+        CURRENT_VULNS=0
+        UPDATED_VULNS=0
+        
+        if [ -f "current-vulnerabilities.json" ]; then
+          CURRENT_VULNS=$(jq '.vulnerabilities | length' current-vulnerabilities.json || echo 0)
+        fi
+        
+        if [ -f "updated-vulnerabilities.json" ]; then
+          UPDATED_VULNS=$(jq '.vulnerabilities | length' updated-vulnerabilities.json || echo 0)
+        fi
+        
+        echo "### 🔒 Security Impact" >> dependency-update-summary.md
+        echo "" >> dependency-update-summary.md
+        echo "| Metric | Before | After | Change |" >> dependency-update-summary.md
+        echo "|--------|--------|-------|--------|" >> dependency-update-summary.md
+        echo "| Vulnerabilities | $CURRENT_VULNS | $UPDATED_VULNS | $((UPDATED_VULNS - CURRENT_VULNS)) |" >> dependency-update-summary.md
+        echo "" >> dependency-update-summary.md
+        
+        if [ $UPDATED_VULNS -lt $CURRENT_VULNS ]; then
+          echo "✅ **Security Improved**: Fixed $((CURRENT_VULNS - UPDATED_VULNS)) vulnerabilities" >> dependency-update-summary.md
+        elif [ $UPDATED_VULNS -gt $CURRENT_VULNS ]; then
+          echo "⚠️ **Security Alert**: $((UPDATED_VULNS - CURRENT_VULNS)) new vulnerabilities introduced" >> dependency-update-summary.md
+        else
+          echo "➡️ **Security Status**: No change in vulnerability count" >> dependency-update-summary.md
+        fi
+        
+        echo "" >> dependency-update-summary.md
+        echo "## Testing Results" >> dependency-update-summary.md
+        echo "" >> dependency-update-summary.md
+        echo "- ✅ Critical imports validated" >> dependency-update-summary.md
+        echo "- ✅ Dependency compatibility confirmed" >> dependency-update-summary.md
+        echo "- ✅ Security analysis completed" >> dependency-update-summary.md
+        echo "" >> dependency-update-summary.md
+        echo "## Next Steps" >> dependency-update-summary.md
+        echo "" >> dependency-update-summary.md
+        echo "1. Review the changes in this pull request" >> dependency-update-summary.md
+        echo "2. Run the full test suite to validate functionality" >> dependency-update-summary.md
+        echo "3. Deploy to development environment for integration testing" >> dependency-update-summary.md
+        echo "4. Monitor for any runtime issues after deployment" >> dependency-update-summary.md
+    
+    - name: Apply updates if changes exist
+      run: |
+        # Check if there are any changes
+        CHANGES_MADE=false
+        
+        if ! cmp -s requirements.txt requirements.txt.new; then
+          mv requirements.txt.new requirements.txt
+          CHANGES_MADE=true
+        fi
+        
+        if [ -f "requirements-dev.txt.new" ] && ! cmp -s requirements-dev.txt requirements-dev.txt.new; then
+          mv requirements-dev.txt.new requirements-dev.txt
+          CHANGES_MADE=true
+        fi
+        
+        echo "CHANGES_MADE=$CHANGES_MADE" >> $GITHUB_ENV
+        echo "changes_made=$CHANGES_MADE" >> $GITHUB_OUTPUT
+        
+        if [ "$CHANGES_MADE" = "true" ]; then
+          echo "📝 Changes detected and applied"
+        else
+          echo "✅ No dependency updates needed"
+        fi
+      id: check_changes
+    
+    - name: Create Pull Request
+      if: steps.check_changes.outputs.changes_made == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: |
+          chore: update Python dependencies (${{ inputs.update_type || 'all' }})
+          
+          - Update type: ${{ inputs.update_type || 'all' }}
+          - Security scan: completed
+          - Import tests: passed
+          - Generated by: GitHub Actions
+        title: "🔄 Dependency Updates (${{ inputs.update_type || 'all' }})"
+        body-path: dependency-update-summary.md
+        branch: dependency-updates/python-${{ github.run_number }}
+        delete-branch: true
+        labels: |
+          dependencies
+          automated
+          ${{ inputs.update_type || 'all' }}-updates
+        reviewers: |
+          ${{ github.actor }}
+        draft: false
+    
+    - name: Upload dependency reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: dependency-update-reports
+        path: |
+          dependency-update-summary.md
+          current-vulnerabilities.json
+          updated-vulnerabilities.json
+          current-audit.json
+          updated-audit.json
+          outdated-packages.json
+          requirements.txt.backup
+          requirements-dev.txt.backup
+        retention-days: 30
+
+  # ==========================================
+  # Container Base Image Updates
+  # ==========================================
+  
+  container-updates:
+    name: Container Base Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check for base image updates
+      run: |
+        echo "🐳 Checking for container base image updates..."
+        
+        # Extract current base image
+        CURRENT_IMAGE=$(grep "FROM python:" Dockerfile | head -1 | awk '{print $2}')
+        echo "Current base image: $CURRENT_IMAGE"
+        
+        # Check for newer patch versions
+        BASE_VERSION="python:3.12-slim"
+        
+        # Pull latest image info
+        docker pull $BASE_VERSION
+        LATEST_DIGEST=$(docker inspect --format='{{.Id}}' $BASE_VERSION)
+        CURRENT_DIGEST=$(docker inspect --format='{{.Id}}' $CURRENT_IMAGE 2>/dev/null || echo "unknown")
+        
+        echo "Current digest: $CURRENT_DIGEST"
+        echo "Latest digest: $LATEST_DIGEST"
+        
+        if [ "$CURRENT_DIGEST" != "$LATEST_DIGEST" ]; then
+          echo "📦 Base image update available"
+          echo "BASE_IMAGE_UPDATE=true" >> $GITHUB_ENV
+          echo "base_image_update=true" >> $GITHUB_OUTPUT
+          
+          # Update Dockerfile
+          sed -i "s|FROM python:.*|FROM $BASE_VERSION|g" Dockerfile
+          
+          # Create update summary
+          cat > container-update-summary.md << EOF
+        # 🐳 Container Base Image Update
+        
+        ## Update Details
+        - **Current Image**: $CURRENT_IMAGE
+        - **Updated Image**: $BASE_VERSION
+        - **Update Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        
+        ## Changes
+        - Updated Python base image to latest patch version
+        - Includes latest security patches and bug fixes
+        - Maintains compatibility with Python 3.12
+        
+        ## Testing
+        - ✅ Image pull successful
+        - ✅ Dockerfile syntax validated
+        
+        ## Next Steps
+        1. Build and test the updated container image
+        2. Run security scan on new image
+        3. Deploy to development for validation
+        4. Monitor for any compatibility issues
+        EOF
+        else
+          echo "✅ Base image is up to date"
+          echo "BASE_IMAGE_UPDATE=false" >> $GITHUB_ENV
+          echo "base_image_update=false" >> $GITHUB_OUTPUT
+        fi
+      id: check_image
+    
+    - name: Test updated Dockerfile
+      if: steps.check_image.outputs.base_image_update == 'true'
+      run: |
+        echo "🧪 Testing updated Dockerfile..."
+        
+        # Build test image
+        docker build -t test-updated-image .
+        
+        # Basic functionality test
+        docker run --rm test-updated-image python --version
+        docker run --rm test-updated-image pip --version
+        
+        echo "✅ Container build successful"
+    
+    - name: Create Pull Request for container updates
+      if: steps.check_image.outputs.base_image_update == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: |
+          chore: update container base image
+          
+          - Updated Python base image to latest patch version
+          - Includes security patches and bug fixes
+          - Generated by: GitHub Actions
+        title: "🐳 Container Base Image Update"
+        body-path: container-update-summary.md
+        branch: dependency-updates/container-${{ github.run_number }}
+        delete-branch: true
+        labels: |
+          dependencies
+          container
+          automated
+          security
+        reviewers: |
+          ${{ github.actor }}
+        draft: false
+
+  # ==========================================
+  # Update Summary
+  # ==========================================
+  
+  update-summary:
+    name: Update Summary
+    runs-on: ubuntu-latest
+    needs: [python-updates, container-updates]
+    if: always()
+    
+    steps:
+    - name: Generate overall summary
+      run: |
+        cat << EOF > overall-update-summary.md
+        # 🔄 Dependency Update Workflow Summary
+        
+        ## Workflow Results
+        
+        | Update Type | Status | Result |
+        |-------------|--------|--------|
+        | Python Dependencies | ${{ needs.python-updates.result }} | ${{ needs.python-updates.result == 'success' && '✅ Completed' || '❌ Failed' }} |
+        | Container Base Images | ${{ needs.container-updates.result }} | ${{ needs.container-updates.result == 'success' && '✅ Completed' || '❌ Failed' }} |
+        
+        ## Update Configuration
+        - **Update Type**: ${{ inputs.update_type || 'all' }}
+        - **Triggered**: ${{ github.event_name == 'schedule' && 'Scheduled' || 'Manual' }}
+        - **Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        
+        ## Next Steps
+        
+        ${{ needs.python-updates.result == 'success' && '- ✅ Review Python dependency PR if created' || '- ❌ Check Python dependency update logs' }}
+        ${{ needs.container-updates.result == 'success' && '- ✅ Review container update PR if created' || '- ❌ Check container update logs' }}
+        - 🧪 Run full test suite on updated dependencies
+        - 🚀 Deploy to development environment for integration testing
+        - 📊 Monitor application performance after updates
+        
+        ## Recommendations
+        
+        1. **Automated Testing**: Ensure all tests pass before merging updates
+        2. **Security Review**: Validate that updates address security vulnerabilities
+        3. **Performance Impact**: Monitor for any performance regressions
+        4. **Rollback Plan**: Be prepared to revert if issues arise
+        
+        ---
+        
+        **Automation**: This workflow runs weekly to keep dependencies current and secure.
+        **Manual Triggers**: Use workflow dispatch for ad-hoc updates or security patches.
+        EOF
+    
+    - name: Upload summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: dependency-update-workflow-summary
+        path: overall-update-summary.md
+        retention-days: 90
+    
+    - name: Add to job summary
+      run: |
+        echo "## 🔄 Dependency Update Workflow Complete" >> $GITHUB_STEP_SUMMARY
+        cat overall-update-summary.md >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,504 @@
+name: Performance Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      test_duration:
+        description: 'Test duration (minutes)'
+        required: true
+        default: '5'
+        type: string
+      concurrent_users:
+        description: 'Concurrent users'
+        required: true
+        default: '10'
+        type: string
+  schedule:
+    # Run performance tests weekly on Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '18'
+
+jobs:
+  # ==========================================
+  # Load Testing with Locust
+  # ==========================================
+  
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install performance testing tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install locust requests matplotlib pandas
+    
+    - name: Create Locust performance test
+      run: |
+        cat > locustfile.py << 'EOF'
+        import random
+        import json
+        from locust import HttpUser, task, between
+        
+        class ChatBotUser(HttpUser):
+            wait_time = between(1, 3)
+            
+            def on_start(self):
+                """Initialize user session"""
+                # Test health endpoint first
+                response = self.client.get("/health")
+                if response.status_code != 200:
+                    print(f"Health check failed: {response.status_code}")
+            
+            @task(3)
+            def health_check(self):
+                """Basic health check - most frequent"""
+                self.client.get("/health", name="health-check")
+            
+            @task(2)
+            def ready_check(self):
+                """Readiness probe check"""
+                self.client.get("/health/ready", name="ready-check")
+            
+            @task(1)
+            def detailed_health(self):
+                """Detailed health check"""
+                self.client.get("/health/detailed", name="detailed-health")
+            
+            @task(5)
+            def chat_conversation(self):
+                """Main chat functionality test"""
+                messages = [
+                    "Hello, I need career advice",
+                    "What skills should I develop for AI engineering?",
+                    "How do I prepare for technical interviews?",
+                    "What are the latest trends in machine learning?",
+                    "Can you help me with my resume?",
+                    "What programming languages should I learn?",
+                    "How do I transition into data science?",
+                    "What are the best practices for Python development?",
+                ]
+                
+                message = random.choice(messages)
+                payload = {
+                    "message": message,
+                    "session_id": f"perf-test-{random.randint(1000, 9999)}"
+                }
+                
+                with self.client.post(
+                    "/api/chat", 
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    catch_response=True,
+                    name="chat-message"
+                ) as response:
+                    if response.status_code == 200:
+                        try:
+                            json_response = response.json()
+                            if "response" in json_response:
+                                response.success()
+                            else:
+                                response.failure("Missing response field")
+                        except json.JSONDecodeError:
+                            response.failure("Invalid JSON response")
+                    else:
+                        response.failure(f"HTTP {response.status_code}")
+            
+            @task(1)
+            def conversation_history(self):
+                """Test conversation history retrieval"""
+                session_id = f"perf-test-{random.randint(1000, 9999)}"
+                self.client.get(
+                    f"/api/conversations/{session_id}",
+                    name="conversation-history"
+                )
+        EOF
+    
+    - name: Determine target URL
+      id: target
+      run: |
+        case "${{ inputs.environment || 'dev' }}" in
+          "dev")
+            echo "url=https://ai-career-mentor-dev.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+          "staging")
+            echo "url=https://ai-career-mentor-staging.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+          "prod")
+            echo "url=https://ai-career-mentor-prod.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "url=https://ai-career-mentor-dev.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+        esac
+    
+    - name: Run load test
+      run: |
+        USERS=${{ inputs.concurrent_users || '10' }}
+        DURATION="${{ inputs.test_duration || '5' }}m"
+        TARGET_URL="${{ steps.target.outputs.url }}"
+        
+        echo "🚀 Starting load test:"
+        echo "  Target: $TARGET_URL"
+        echo "  Users: $USERS"
+        echo "  Duration: $DURATION"
+        
+        # Run Locust in headless mode
+        locust \
+          --headless \
+          --users $USERS \
+          --spawn-rate 2 \
+          --run-time $DURATION \
+          --host $TARGET_URL \
+          --html performance-report.html \
+          --csv performance-results
+    
+    - name: Generate performance summary
+      run: |
+        cat > performance-summary.md << 'EOF'
+        # 🚀 Performance Test Results
+        
+        ## Test Configuration
+        - **Target Environment**: ${{ inputs.environment || 'dev' }}
+        - **Target URL**: ${{ steps.target.outputs.url }}
+        - **Concurrent Users**: ${{ inputs.concurrent_users || '10' }}
+        - **Test Duration**: ${{ inputs.test_duration || '5' }} minutes
+        - **Test Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        
+        ## Test Scenarios
+        1. **Health Checks** (60% of requests)
+           - Basic health endpoint
+           - Readiness probe
+           - Detailed health status
+        
+        2. **Chat Functionality** (35% of requests)
+           - AI-powered conversation
+           - Various career guidance queries
+           - Session management
+        
+        3. **Data Retrieval** (5% of requests)
+           - Conversation history
+           - User session data
+        
+        ## Key Metrics
+        
+        See detailed results in the performance report artifacts.
+        
+        ## Recommendations
+        
+        Based on the test results:
+        - Monitor response times under load
+        - Evaluate auto-scaling configuration
+        - Review database connection pooling
+        - Consider caching strategies for frequent queries
+        - Validate error rates and failure scenarios
+        
+        EOF
+        
+        # Add CSV results summary if available
+        if [ -f "performance-results_stats.csv" ]; then
+          echo "## Statistics Summary" >> performance-summary.md
+          echo "" >> performance-summary.md
+          echo "\`\`\`" >> performance-summary.md
+          head -n 20 performance-results_stats.csv >> performance-summary.md
+          echo "\`\`\`" >> performance-summary.md
+        fi
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-test-results
+        path: |
+          performance-report.html
+          performance-results*.csv
+          performance-summary.md
+          locustfile.py
+        retention-days: 30
+    
+    - name: Add results to summary
+      if: always()
+      run: |
+        echo "## 🚀 Performance Test Complete" >> $GITHUB_STEP_SUMMARY
+        cat performance-summary.md >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # API Response Time Testing
+  # ==========================================
+  
+  api-benchmark:
+    name: API Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    
+    - name: Install benchmarking tools
+      run: |
+        npm install -g autocannon
+        sudo apt-get update
+        sudo apt-get install -y curl jq
+    
+    - name: Determine target URL
+      id: target
+      run: |
+        case "${{ inputs.environment || 'dev' }}" in
+          "dev")
+            echo "url=https://ai-career-mentor-dev.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+          "staging")
+            echo "url=https://ai-career-mentor-staging.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+          "prod")
+            echo "url=https://ai-career-mentor-prod.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "url=https://ai-career-mentor-dev.azurecontainerapps.io" >> $GITHUB_OUTPUT
+            ;;
+        esac
+    
+    - name: Warm up application
+      run: |
+        TARGET_URL="${{ steps.target.outputs.url }}"
+        echo "🔥 Warming up application..."
+        
+        for i in {1..5}; do
+          curl -s "$TARGET_URL/health" > /dev/null
+          sleep 1
+        done
+    
+    - name: Benchmark health endpoint
+      run: |
+        TARGET_URL="${{ steps.target.outputs.url }}"
+        
+        echo "📊 Benchmarking /health endpoint..."
+        autocannon \
+          --connections 10 \
+          --duration 30 \
+          --json \
+          "$TARGET_URL/health" > health-benchmark.json
+        
+        # Extract key metrics
+        THROUGHPUT=$(jq '.requests.average' health-benchmark.json)
+        LATENCY_AVG=$(jq '.latency.average' health-benchmark.json)
+        LATENCY_P99=$(jq '.latency.p99' health-benchmark.json)
+        
+        echo "Health Endpoint Results:"
+        echo "  Throughput: $THROUGHPUT req/sec"
+        echo "  Avg Latency: $LATENCY_AVG ms"
+        echo "  P99 Latency: $LATENCY_P99 ms"
+    
+    - name: Benchmark chat endpoint
+      run: |
+        TARGET_URL="${{ steps.target.outputs.url }}"
+        
+        # Create test payload
+        cat > chat-payload.json << 'EOF'
+        {
+          "message": "What skills should I develop for AI engineering?",
+          "session_id": "benchmark-test"
+        }
+        EOF
+        
+        echo "💬 Benchmarking /api/chat endpoint..."
+        autocannon \
+          --connections 5 \
+          --duration 60 \
+          --method POST \
+          --headers "Content-Type=application/json" \
+          --body chat-payload.json \
+          --json \
+          "$TARGET_URL/api/chat" > chat-benchmark.json || true
+        
+        # Extract metrics if successful
+        if [ -f "chat-benchmark.json" ]; then
+          CHAT_THROUGHPUT=$(jq '.requests.average // 0' chat-benchmark.json)
+          CHAT_LATENCY_AVG=$(jq '.latency.average // 0' chat-benchmark.json)
+          CHAT_LATENCY_P99=$(jq '.latency.p99 // 0' chat-benchmark.json)
+          
+          echo "Chat Endpoint Results:"
+          echo "  Throughput: $CHAT_THROUGHPUT req/sec"
+          echo "  Avg Latency: $CHAT_LATENCY_AVG ms"
+          echo "  P99 Latency: $CHAT_LATENCY_P99 ms"
+        fi
+    
+    - name: Generate benchmark report
+      run: |
+        cat > benchmark-report.md << 'EOF'
+        # 📊 API Benchmark Results
+        
+        ## Test Configuration
+        - **Environment**: ${{ inputs.environment || 'dev' }}
+        - **Target URL**: ${{ steps.target.outputs.url }}
+        - **Test Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        
+        ## Benchmark Results
+        
+        ### Health Endpoint (/health)
+        - **Duration**: 30 seconds
+        - **Connections**: 10
+        
+        EOF
+        
+        if [ -f "health-benchmark.json" ]; then
+          echo "| Metric | Value |" >> benchmark-report.md
+          echo "|--------|-------|" >> benchmark-report.md
+          echo "| Throughput | $(jq '.requests.average' health-benchmark.json) req/sec |" >> benchmark-report.md
+          echo "| Avg Latency | $(jq '.latency.average' health-benchmark.json) ms |" >> benchmark-report.md
+          echo "| P95 Latency | $(jq '.latency.p95' health-benchmark.json) ms |" >> benchmark-report.md
+          echo "| P99 Latency | $(jq '.latency.p99' health-benchmark.json) ms |" >> benchmark-report.md
+          echo "" >> benchmark-report.md
+        fi
+        
+        echo "### Chat Endpoint (/api/chat)" >> benchmark-report.md
+        echo "- **Duration**: 60 seconds" >> benchmark-report.md
+        echo "- **Connections**: 5" >> benchmark-report.md
+        echo "" >> benchmark-report.md
+        
+        if [ -f "chat-benchmark.json" ]; then
+          echo "| Metric | Value |" >> benchmark-report.md
+          echo "|--------|-------|" >> benchmark-report.md
+          echo "| Throughput | $(jq '.requests.average // "N/A"' chat-benchmark.json) req/sec |" >> benchmark-report.md
+          echo "| Avg Latency | $(jq '.latency.average // "N/A"' chat-benchmark.json) ms |" >> benchmark-report.md
+          echo "| P95 Latency | $(jq '.latency.p95 // "N/A"' chat-benchmark.json) ms |" >> benchmark-report.md
+          echo "| P99 Latency | $(jq '.latency.p99 // "N/A"' chat-benchmark.json) ms |" >> benchmark-report.md
+        else
+          echo "Chat endpoint benchmarking may have failed. Check logs for details." >> benchmark-report.md
+        fi
+        
+        echo "" >> benchmark-report.md
+        echo "## Performance Thresholds" >> benchmark-report.md
+        echo "" >> benchmark-report.md
+        echo "### Acceptable Performance:" >> benchmark-report.md
+        echo "- Health endpoint: < 100ms P99 latency" >> benchmark-report.md
+        echo "- Chat endpoint: < 2000ms P99 latency" >> benchmark-report.md
+        echo "- Error rate: < 1%" >> benchmark-report.md
+        echo "" >> benchmark-report.md
+        echo "### Recommendations:" >> benchmark-report.md
+        echo "- Monitor trends over time" >> benchmark-report.md
+        echo "- Set up alerting for performance degradation" >> benchmark-report.md
+        echo "- Consider scaling when latency consistently exceeds thresholds" >> benchmark-report.md
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: api-benchmark-results
+        path: |
+          health-benchmark.json
+          chat-benchmark.json
+          benchmark-report.md
+          chat-payload.json
+        retention-days: 30
+    
+    - name: Add benchmark summary
+      if: always()
+      run: |
+        echo "## 📊 API Benchmark Complete" >> $GITHUB_STEP_SUMMARY
+        cat benchmark-report.md >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # Performance Summary
+  # ==========================================
+  
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: [load-test, api-benchmark]
+    if: always()
+    
+    steps:
+    - name: Download all performance reports
+      uses: actions/download-artifact@v3
+      with:
+        path: performance-reports
+    
+    - name: Generate combined summary
+      run: |
+        cat << EOF > combined-performance-summary.md
+        # 🎯 Performance Testing Summary
+        
+        ## Test Overview
+        - **Environment**: ${{ inputs.environment || 'dev' }}
+        - **Test Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        - **Triggered by**: ${{ github.actor }}
+        
+        ## Test Results
+        
+        ### Load Testing
+        - **Status**: ${{ needs.load-test.result }}
+        - **Concurrent Users**: ${{ inputs.concurrent_users || '10' }}
+        - **Duration**: ${{ inputs.test_duration || '5' }} minutes
+        
+        ### API Benchmarking
+        - **Status**: ${{ needs.api-benchmark.result }}
+        - **Focus**: Response time and throughput analysis
+        
+        ## Key Findings
+        
+        ### Performance Status
+        | Test Type | Result | Notes |
+        |-----------|--------|-------|
+        | Load Test | ${{ needs.load-test.result }} | Multi-user scenario testing |
+        | API Benchmark | ${{ needs.api-benchmark.result }} | Single endpoint performance |
+        
+        ### Recommendations
+        
+        1. **Monitor Trends**: Set up continuous performance monitoring
+        2. **Scaling Strategy**: Review auto-scaling configuration based on results
+        3. **Optimization**: Identify bottlenecks and optimization opportunities
+        4. **Alerting**: Configure performance alerts for production
+        
+        ## Next Steps
+        
+        - Review detailed reports in workflow artifacts
+        - Compare results with previous test runs
+        - Update performance baselines and thresholds
+        - Plan optimization work based on findings
+        
+        ---
+        
+        **Environment Tested**: ${{ inputs.environment || 'dev' }}
+        **Commit**: ${{ github.sha }}
+        **Workflow**: Performance Testing
+        EOF
+    
+    - name: Upload combined summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-testing-summary
+        path: combined-performance-summary.md
+        retention-days: 90
+    
+    - name: Final summary output
+      run: |
+        echo "## 🎯 Performance Testing Complete" >> $GITHUB_STEP_SUMMARY
+        cat combined-performance-summary.md >> $GITHUB_STEP_SUMMARY
