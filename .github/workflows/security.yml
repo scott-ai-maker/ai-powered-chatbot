@@ -65,7 +65,7 @@ jobs:
       continue-on-error: true
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: dependency-security-reports
@@ -124,7 +124,7 @@ jobs:
       continue-on-error: true
     
     - name: Upload code security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: code-security-reports
@@ -195,7 +195,7 @@ jobs:
         sarif_file: trivy-results.sarif
     
     - name: Upload container security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: container-security-reports
@@ -260,7 +260,7 @@ jobs:
         pip-licenses --fail-on "GPL v3" --fail-on "AGPL v3" || true
     
     - name: Upload license reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: license-reports
@@ -301,7 +301,7 @@ jobs:
       continue-on-error: true
     
     - name: Upload secrets scan report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: secrets-scan-report
@@ -320,7 +320,7 @@ jobs:
     
     steps:
     - name: Download all security reports
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: security-reports
     
@@ -386,7 +386,7 @@ jobs:
         EOF
     
     - name: Upload security summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-summary
         path: security-summary.md

@@ -144,9 +144,10 @@ st.markdown("""
         color: white;
         border: none;
         border-radius: 20px;
-        padding: 0.5rem 2rem;
+        padding: 0.75rem 2rem;
         font-weight: 600;
         transition: all 0.3s ease;
+        font-size: 1rem;
     }
     
     .stButton > button:hover {
