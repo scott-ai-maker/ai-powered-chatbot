@@ -26,6 +26,7 @@ from src.models.rag_models import RAGResponse, SearchQuery
 from src.services.ai_service import AzureOpenAIService
 from src.services.rag_service import RAGEnhancedAIService
 from src.services.search_service import AzureCognitiveSearchService
+from src.services.cache_service import response_cache
 from src.services.monitoring_service import get_monitoring_service
 from src.services.monitoring_middleware import ChatMetricsCollector
 
@@ -54,14 +55,18 @@ async def get_ai_service(
 async def get_rag_service(
     settings: Settings = Depends(get_settings_dependency)
 ) -> RAGEnhancedAIService:
-    """Dependency to get RAG service instance."""
+    """Dependency to get RAG service instance with lazy initialization."""
     global _rag_service, _search_service
     if _rag_service is None:
         # Initialize RAG service (it will create its own search service)
         _rag_service = RAGEnhancedAIService(settings=settings)
         
-        # Initialize the search index
-        await _rag_service.search_service.initialize_index()
+        # Initialize the search index only once during startup
+        # This prevents the expensive initialization on every request
+        try:
+            await _rag_service.search_service.initialize_index()
+        except Exception as e:
+            logger.warning(f"Search index initialization failed, will retry on demand: {e}")
     return _rag_service
 
 
