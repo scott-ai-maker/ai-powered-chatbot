@@ -1,15 +1,14 @@
 """
 Knowledge base seeder for the AI Career Mentor Chatbot.
 
-This module provides sample career guidance content and utilities for 
+This module provides sample career guidance content and utilities for
 populating the knowledge base with comprehensive AI career information.
 Demonstrates enterprise data seeding patterns for RAG systems.
 """
 
 import asyncio
 import logging
-from typing import List, Dict, Any
-from datetime import datetime, timezone
+from typing import List
 
 from src.models.rag_models import KnowledgeDocument, DocumentType
 from src.services.search_service import AzureCognitiveSearchService
@@ -20,29 +19,30 @@ logger = logging.getLogger(__name__)
 class KnowledgeBaseSeeder:
     """
     Seeds the knowledge base with comprehensive AI career guidance content.
-    
+
     Provides sample documents covering all aspects of AI career development
     including technical skills, interview preparation, salary data, and more.
     """
-    
+
     def __init__(self, search_service: AzureCognitiveSearchService):
         """Initialize the knowledge base seeder."""
         self.search_service = search_service
-    
+
     def get_sample_documents(self) -> List[KnowledgeDocument]:
         """
         Generate a comprehensive set of sample knowledge documents.
-        
+
         Returns:
             List of knowledge documents covering AI career topics
         """
         documents = []
-        
+
         # Career Transition Guides
-        documents.extend([
-            KnowledgeDocument(
-                title="Complete Guide to Transitioning into AI Engineering",
-                content="""
+        documents.extend(
+            [
+                KnowledgeDocument(
+                    title="Complete Guide to Transitioning into AI Engineering",
+                    content="""
                 Transitioning into AI engineering requires a strategic approach combining technical skills, 
                 practical experience, and industry knowledge. Here's a comprehensive roadmap:
 
@@ -97,16 +97,24 @@ class KnowledgeBaseSeeder:
                 - Find mentors already working in AI engineering roles
                 - Consider AI bootcamps or graduate programs if career change is significant
                 """,
-                summary="Comprehensive guide for professionals transitioning to AI engineering roles, covering technical requirements, learning paths, and timeline expectations.",
-                document_type=DocumentType.CAREER_GUIDE,
-                tags=["career-transition", "ai-engineering", "learning-path", "skills-development"],
-                metadata={"difficulty_level": "beginner", "read_time_minutes": 12, "target_audience": "career_changers"},
-                author="Senior AI Engineering Mentor"
-            ),
-            
-            KnowledgeDocument(
-                title="AI Engineering Skills Roadmap 2024-2025",
-                content="""
+                    summary="Comprehensive guide for professionals transitioning to AI engineering roles, covering technical requirements, learning paths, and timeline expectations.",
+                    document_type=DocumentType.CAREER_GUIDE,
+                    tags=[
+                        "career-transition",
+                        "ai-engineering",
+                        "learning-path",
+                        "skills-development",
+                    ],
+                    metadata={
+                        "difficulty_level": "beginner",
+                        "read_time_minutes": 12,
+                        "target_audience": "career_changers",
+                    },
+                    author="Senior AI Engineering Mentor",
+                ),
+                KnowledgeDocument(
+                    title="AI Engineering Skills Roadmap 2024-2025",
+                    content="""
                 The AI engineering landscape is rapidly evolving. Here are the essential skills and emerging 
                 technologies that define successful AI engineers in 2024-2025:
 
@@ -184,19 +192,31 @@ class KnowledgeBaseSeeder:
                 3. Cross-functional collaboration and team leadership
                 4. Innovation and research contribution to the field
                 """,
-                summary="Comprehensive 2024-2025 skills roadmap for AI engineers at all levels, covering technical requirements and specialization paths.",
-                document_type=DocumentType.TECHNICAL_SKILL,
-                tags=["skills-roadmap", "technical-skills", "career-levels", "2024", "specialization"],
-                metadata={"difficulty_level": "all_levels", "read_time_minutes": 15, "last_updated": "2024-01"},
-                author="AI Industry Research Team"
-            )
-        ])
-        
+                    summary="Comprehensive 2024-2025 skills roadmap for AI engineers at all levels, covering technical requirements and specialization paths.",
+                    document_type=DocumentType.TECHNICAL_SKILL,
+                    tags=[
+                        "skills-roadmap",
+                        "technical-skills",
+                        "career-levels",
+                        "2024",
+                        "specialization",
+                    ],
+                    metadata={
+                        "difficulty_level": "all_levels",
+                        "read_time_minutes": 15,
+                        "last_updated": "2024-01",
+                    },
+                    author="AI Industry Research Team",
+                ),
+            ]
+        )
+
         # Interview Preparation
-        documents.extend([
-            KnowledgeDocument(
-                title="AI Engineering Interview Preparation: Technical Questions and Answers",
-                content="""
+        documents.extend(
+            [
+                KnowledgeDocument(
+                    title="AI Engineering Interview Preparation: Technical Questions and Answers",
+                    content="""
                 AI engineering interviews typically consist of multiple rounds testing different aspects 
                 of your knowledge and problem-solving abilities. Here's what to expect and how to prepare:
 
@@ -308,19 +328,31 @@ class KnowledgeBaseSeeder:
                 6. Practice explaining technical concepts in simple terms
                 7. Mock interviews with peers or mentors for feedback
                 """,
-                summary="Comprehensive guide to AI engineering interview preparation covering technical questions, coding challenges, system design, and behavioral interviews.",
-                document_type=DocumentType.INTERVIEW_PREP,
-                tags=["interview-prep", "technical-questions", "coding-interview", "system-design", "behavioral-interview"],
-                metadata={"difficulty_level": "intermediate", "read_time_minutes": 18, "interview_types": "all"},
-                author="AI Engineering Interview Panel"
-            )
-        ])
-        
+                    summary="Comprehensive guide to AI engineering interview preparation covering technical questions, coding challenges, system design, and behavioral interviews.",
+                    document_type=DocumentType.INTERVIEW_PREP,
+                    tags=[
+                        "interview-prep",
+                        "technical-questions",
+                        "coding-interview",
+                        "system-design",
+                        "behavioral-interview",
+                    ],
+                    metadata={
+                        "difficulty_level": "intermediate",
+                        "read_time_minutes": 18,
+                        "interview_types": "all",
+                    },
+                    author="AI Engineering Interview Panel",
+                )
+            ]
+        )
+
         # Salary and Compensation Data
-        documents.extend([
-            KnowledgeDocument(
-                title="AI Engineer Salary Guide 2024: Compensation by Experience and Location",
-                content="""
+        documents.extend(
+            [
+                KnowledgeDocument(
+                    title="AI Engineer Salary Guide 2024: Compensation by Experience and Location",
+                    content="""
                 AI engineering salaries vary significantly based on experience, location, company size, 
                 and specialization. Here's comprehensive compensation data for 2024:
 
@@ -449,19 +481,32 @@ class KnowledgeBaseSeeder:
                 - Senior to Principal/Director: 5-8 years (60-100% salary increase)
                 - Individual Contributor vs. Management tracks available
                 """,
-                summary="Comprehensive 2024 salary guide for AI engineers covering compensation by experience, location, company type, and specialization with negotiation strategies.",
-                document_type=DocumentType.SALARY_DATA,
-                tags=["salary", "compensation", "career-progression", "negotiation", "2024", "experience-levels"],
-                metadata={"difficulty_level": "all_levels", "read_time_minutes": 14, "data_source": "industry_surveys"},
-                author="AI Compensation Research Team"
-            )
-        ])
-        
+                    summary="Comprehensive 2024 salary guide for AI engineers covering compensation by experience, location, company type, and specialization with negotiation strategies.",
+                    document_type=DocumentType.SALARY_DATA,
+                    tags=[
+                        "salary",
+                        "compensation",
+                        "career-progression",
+                        "negotiation",
+                        "2024",
+                        "experience-levels",
+                    ],
+                    metadata={
+                        "difficulty_level": "all_levels",
+                        "read_time_minutes": 14,
+                        "data_source": "industry_surveys",
+                    },
+                    author="AI Compensation Research Team",
+                )
+            ]
+        )
+
         # Learning Resources and Paths
-        documents.extend([
-            KnowledgeDocument(
-                title="Essential Learning Resources for AI Engineers: Courses, Books, and Practical Projects",
-                content="""
+        documents.extend(
+            [
+                KnowledgeDocument(
+                    title="Essential Learning Resources for AI Engineers: Courses, Books, and Practical Projects",
+                    content="""
                 The AI field evolves rapidly, requiring continuous learning. Here are the most effective 
                 resources organized by learning style and career stage:
 
@@ -617,19 +662,32 @@ class KnowledgeBaseSeeder:
                 7. Participate in competitions and hackathons
                 8. Seek feedback from experienced practitioners
                 """,
-                summary="Comprehensive learning resource guide for AI engineers covering courses, books, projects, and career pathways with time management strategies.",
-                document_type=DocumentType.LEARNING_PATH,
-                tags=["learning-resources", "courses", "books", "projects", "career-pathways", "skill-development"],
-                metadata={"difficulty_level": "all_levels", "read_time_minutes": 16, "resource_count": "50+"},
-                author="AI Education Advisory Board"
-            )
-        ])
-        
+                    summary="Comprehensive learning resource guide for AI engineers covering courses, books, projects, and career pathways with time management strategies.",
+                    document_type=DocumentType.LEARNING_PATH,
+                    tags=[
+                        "learning-resources",
+                        "courses",
+                        "books",
+                        "projects",
+                        "career-pathways",
+                        "skill-development",
+                    ],
+                    metadata={
+                        "difficulty_level": "all_levels",
+                        "read_time_minutes": 16,
+                        "resource_count": "50+",
+                    },
+                    author="AI Education Advisory Board",
+                )
+            ]
+        )
+
         # Industry Insights
-        documents.extend([
-            KnowledgeDocument(
-                title="AI Industry Trends 2024-2025: What AI Engineers Need to Know",
-                content="""
+        documents.extend(
+            [
+                KnowledgeDocument(
+                    title="AI Industry Trends 2024-2025: What AI Engineers Need to Know",
+                    content="""
                 The AI industry continues to evolve at breakneck speed. Here are the key trends, 
                 opportunities, and challenges that will shape AI engineering roles in 2024-2025:
 
@@ -800,32 +858,44 @@ class KnowledgeBaseSeeder:
                 willing to continuously learn and adapt. Success requires balancing deep technical 
                 skills with business understanding and ethical considerations.
                 """,
-                summary="Comprehensive analysis of AI industry trends for 2024-2025, covering technology developments, job opportunities, market dynamics, and career preparation strategies.",
-                document_type=DocumentType.INDUSTRY_INSIGHT,
-                tags=["industry-trends", "2024", "2025", "opportunities", "challenges", "career-strategy"],
-                metadata={"difficulty_level": "intermediate", "read_time_minutes": 20, "forecast_period": "2024-2025"},
-                author="AI Industry Analysis Team"
-            )
-        ])
-        
+                    summary="Comprehensive analysis of AI industry trends for 2024-2025, covering technology developments, job opportunities, market dynamics, and career preparation strategies.",
+                    document_type=DocumentType.INDUSTRY_INSIGHT,
+                    tags=[
+                        "industry-trends",
+                        "2024",
+                        "2025",
+                        "opportunities",
+                        "challenges",
+                        "career-strategy",
+                    ],
+                    metadata={
+                        "difficulty_level": "intermediate",
+                        "read_time_minutes": 20,
+                        "forecast_period": "2024-2025",
+                    },
+                    author="AI Industry Analysis Team",
+                )
+            ]
+        )
+
         return documents
-    
+
     async def seed_knowledge_base(self) -> bool:
         """
         Seed the knowledge base with sample documents.
-        
+
         Returns:
             True if seeding successful, False otherwise
         """
         try:
             logger.info("Starting knowledge base seeding...")
-            
+
             # Get sample documents
             documents = self.get_sample_documents()
-            
+
             # Index documents in batches
             indexing_status = await self.search_service.index_documents_batch(documents)
-            
+
             if indexing_status.status == "completed":
                 logger.info(
                     f"Successfully seeded knowledge base with {indexing_status.documents_successful} documents"
@@ -838,7 +908,7 @@ class KnowledgeBaseSeeder:
                 for error in indexing_status.error_messages[:5]:  # Show first 5 errors
                     logger.error(f"  - {error}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Error seeding knowledge base: {e}")
             return False
@@ -850,32 +920,32 @@ async def main():
     This would typically be run as a separate script or during application initialization.
     """
     from src.config.settings import Settings
-    
+
     # Load settings
     settings = Settings()
-    
+
     # Initialize search service
     search_service = AzureCognitiveSearchService(settings)
-    
+
     # Initialize knowledge base seeder
     seeder = KnowledgeBaseSeeder(search_service)
-    
+
     try:
         # Initialize search index
         await search_service.initialize_index()
-        
+
         # Seed knowledge base
         success = await seeder.seed_knowledge_base()
-        
+
         if success:
             # Get knowledge base stats
             stats = await search_service.get_knowledge_base_stats()
-            print(f"Knowledge base seeded successfully:")
+            print("Knowledge base seeded successfully:")
             print(f"  Total documents: {stats.total_documents}")
             print(f"  Documents by type: {stats.documents_by_type}")
         else:
             print("Knowledge base seeding failed")
-            
+
     except Exception as e:
         print(f"Error: {e}")
     finally:

@@ -14,13 +14,11 @@ Features:
 - Responsive design for different screen sizes
 """
 
-import asyncio
 import json
 import os
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional
-import time
+from typing import Dict
 
 import streamlit as st
 import httpx
@@ -34,9 +32,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'Get Help': 'https://github.com/scott-ai-maker/ai-powered-chatbot',
-        'Report a bug': 'https://github.com/scott-ai-maker/ai-powered-chatbot/issues',
-        'About': """
+        "Get Help": "https://github.com/scott-ai-maker/ai-powered-chatbot",
+        "Report a bug": "https://github.com/scott-ai-maker/ai-powered-chatbot/issues",
+        "About": """
         # AI Career Mentor Chatbot
         
         Built by Scott as a portfolio project demonstrating:
@@ -46,12 +44,13 @@ st.set_page_config(
         - Beautiful UI/UX with Streamlit
         
         **Tech Stack:** FastAPI, Azure OpenAI, Streamlit, Pydantic
-        """
-    }
+        """,
+    },
 )
 
 # Custom CSS for modern styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* Main theme colors */
     :root {
@@ -198,31 +197,35 @@ st.markdown("""
         80%, 100% { text-shadow: .25em 0 0 black, .5em 0 0 black; }
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 class ChatbotClient:
     """Client for communicating with the FastAPI backend."""
-    
+
     def __init__(self, base_url: str = None):
         # Use environment variable for production, fallback to localhost for development
         if base_url is None:
             base_url = os.getenv(
-                "API_BASE_URL", 
-                "https://ai-career-mentor-prod-app.agreeablecoast-963be1b8.eastus2.azurecontainerapps.io"
+                "API_BASE_URL",
+                "https://ai-career-mentor-prod-app.agreeablecoast-963be1b8.eastus2.azurecontainerapps.io",
             )
         self.base_url = base_url
         self.session = None
-    
+
     async def check_health(self) -> Dict:
         """Check if the backend is healthy."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"{self.base_url}/api/v1/health", timeout=5.0)
+                response = await client.get(
+                    f"{self.base_url}/api/v1/health", timeout=5.0
+                )
                 return response.json()
         except Exception as e:
             return {"status": "disconnected", "error": str(e)}
-    
+
     def check_health_sync(self) -> Dict:
         """Synchronous health check for Streamlit."""
         try:
@@ -230,7 +233,7 @@ class ChatbotClient:
             return response.json()
         except Exception as e:
             return {"status": "disconnected", "error": str(e)}
-    
+
     def send_message(self, message: str, conversation_id: str, user_id: str) -> Dict:
         """Send a message to the chatbot."""
         try:
@@ -238,21 +241,21 @@ class ChatbotClient:
                 "message": message,
                 "conversation_id": conversation_id,
                 "user_id": user_id,
-                "stream": False
+                "stream": False,
             }
-            
+
             response = requests.post(
-                f"{self.base_url}/api/v1/chat/chat",
-                json=payload,
-                timeout=30.0
+                f"{self.base_url}/api/v1/chat/chat", json=payload, timeout=30.0
             )
             response.raise_for_status()
             return response.json()
-            
+
         except requests.exceptions.Timeout:
             return {"error": "Request timed out. The AI service might be busy."}
         except requests.exceptions.ConnectionError:
-            return {"error": "Could not connect to the AI service. Please check if the backend is running."}
+            return {
+                "error": "Could not connect to the AI service. Please check if the backend is running."
+            }
         except requests.exceptions.HTTPError as e:
             return {"error": f"HTTP error {e.response.status_code}: {e.response.text}"}
         except Exception as e:
@@ -261,30 +264,33 @@ class ChatbotClient:
 
 def initialize_session_state():
     """Initialize Streamlit session state variables."""
-    if 'messages' not in st.session_state:
+    if "messages" not in st.session_state:
         st.session_state.messages = []
-    
-    if 'conversation_id' not in st.session_state:
+
+    if "conversation_id" not in st.session_state:
         st.session_state.conversation_id = str(uuid.uuid4())
-    
-    if 'user_id' not in st.session_state:
+
+    if "user_id" not in st.session_state:
         st.session_state.user_id = f"user_{uuid.uuid4().hex[:8]}"
-    
-    if 'chat_client' not in st.session_state:
+
+    if "chat_client" not in st.session_state:
         st.session_state.chat_client = ChatbotClient()
-    
-    if 'backend_status' not in st.session_state:
+
+    if "backend_status" not in st.session_state:
         st.session_state.backend_status = "checking"
 
 
 def render_header():
     """Render the application header."""
-    st.markdown("""
+    st.markdown(
+        """
     <div class="main-header">
         <h1>🤖 AI Career Mentor</h1>
         <p>Your intelligent guide to AI engineering careers</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_sidebar():
@@ -302,57 +308,66 @@ def render_sidebar():
         - **Salary expectations** and negotiations
         - **Industry trends** and opportunities
         """)
-        
+
         st.markdown("---")
-        
+
         # Backend status
         st.markdown("### 🔌 System Status")
         health_status = st.session_state.chat_client.check_health_sync()
-        
+
         if health_status.get("status") == "healthy":
-            st.markdown('<p class="status-connected">✅ Backend Connected</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="status-connected">✅ Backend Connected</p>',
+                unsafe_allow_html=True,
+            )
             st.success(f"Version: {health_status.get('version', 'Unknown')}")
         elif health_status.get("status") == "unhealthy":
-            st.markdown('<p class="status-disconnected">⚠️ Backend Degraded</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="status-disconnected">⚠️ Backend Degraded</p>',
+                unsafe_allow_html=True,
+            )
             st.warning("AI service may have limited functionality")
         else:
-            st.markdown('<p class="status-disconnected">❌ Backend Disconnected</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="status-disconnected">❌ Backend Disconnected</p>',
+                unsafe_allow_html=True,
+            )
             st.error("Cannot connect to AI service")
-        
+
         st.markdown("---")
-        
+
         # Conversation management
         st.markdown("### 💬 Conversation")
         col1, col2 = st.columns(2)
-        
+
         with col1:
             if st.button("🔄 New Chat", use_container_width=True):
                 st.session_state.messages = []
                 st.session_state.conversation_id = str(uuid.uuid4())
                 st.rerun()
-        
+
         with col2:
             if st.button("📥 Download", use_container_width=True):
                 if st.session_state.messages:
                     chat_export = {
                         "conversation_id": st.session_state.conversation_id,
                         "exported_at": datetime.now().isoformat(),
-                        "messages": st.session_state.messages
+                        "messages": st.session_state.messages,
                     }
                     st.download_button(
                         "💾 Download Chat",
                         data=json.dumps(chat_export, indent=2),
                         file_name=f"chat_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json"
+                        mime="application/json",
                     )
-        
+
         # Session info
         st.markdown("### ℹ️ Session Info")
         st.text(f"Messages: {len(st.session_state.messages)}")
         st.text(f"Session: {st.session_state.user_id}")
-        
+
         st.markdown("---")
-        
+
         # Portfolio info
         st.markdown("### 👨‍💻 About the Developer")
         st.markdown("""
@@ -371,11 +386,12 @@ def render_chat_interface():
     """Render the main chat interface."""
     # Chat messages container
     chat_container = st.container()
-    
+
     with chat_container:
         if not st.session_state.messages:
             # Welcome message
-            st.markdown("""
+            st.markdown(
+                """
             <div class="assistant-message">
                 👋 <strong>Hello! I'm your AI Career Mentor.</strong><br><br>
                 
@@ -393,22 +409,30 @@ def render_chat_interface():
                 
                 <strong>What would you like to know about AI engineering careers?</strong>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
         else:
             # Display conversation history
             for i, msg in enumerate(st.session_state.messages):
                 if msg["role"] == "user":
-                    st.markdown(f"""
+                    st.markdown(
+                        f"""
                     <div class="user-message">
                         <strong>You:</strong> {msg["content"]}
                     </div>
-                    """, unsafe_allow_html=True)
+                    """,
+                        unsafe_allow_html=True,
+                    )
                 else:
-                    st.markdown(f"""
+                    st.markdown(
+                        f"""
                     <div class="assistant-message">
                         <strong>🤖 AI Mentor:</strong> {msg["content"]}
                     </div>
-                    """, unsafe_allow_html=True)
+                    """,
+                        unsafe_allow_html=True,
+                    )
 
 
 def handle_user_input():
@@ -416,55 +440,63 @@ def handle_user_input():
     # Input form
     with st.form(key="chat_form", clear_on_submit=True):
         col1, col2 = st.columns([4, 1])
-        
+
         with col1:
             user_input = st.text_input(
                 "Ask me anything about AI engineering careers...",
                 placeholder="e.g., How do I transition from web development to AI engineering?",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
             )
-        
+
         with col2:
             submit_button = st.form_submit_button("Send 🚀", use_container_width=True)
-    
+
     # Process user input
     if submit_button and user_input.strip():
         # Add user message to chat
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_input,
-            "timestamp": datetime.now().isoformat()
-        })
-        
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": user_input,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+
         # Show loading state
         with st.spinner("🤖 AI Mentor is thinking..."):
             # Send message to backend
             response = st.session_state.chat_client.send_message(
                 message=user_input,
                 conversation_id=st.session_state.conversation_id,
-                user_id=st.session_state.user_id
+                user_id=st.session_state.user_id,
             )
-            
+
             if "error" in response:
                 # Handle error
                 error_message = f"❌ **Error:** {response['error']}"
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": error_message,
-                    "timestamp": datetime.now().isoformat(),
-                    "error": True
-                })
-                st.error(response['error'])
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": error_message,
+                        "timestamp": datetime.now().isoformat(),
+                        "error": True,
+                    }
+                )
+                st.error(response["error"])
             else:
                 # Add AI response to chat
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": response.get("message", "Sorry, I couldn't generate a response."),
-                    "timestamp": datetime.now().isoformat(),
-                    "processing_time": response.get("processing_time_ms", 0),
-                    "model": response.get("model_used", "unknown")
-                })
-        
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response.get(
+                            "message", "Sorry, I couldn't generate a response."
+                        ),
+                        "timestamp": datetime.now().isoformat(),
+                        "processing_time": response.get("processing_time_ms", 0),
+                        "model": response.get("model_used", "unknown"),
+                    }
+                )
+
         # Rerun to update the chat display
         st.rerun()
 
@@ -472,41 +504,47 @@ def handle_user_input():
 def render_sample_questions():
     """Render sample questions to help users get started."""
     st.markdown("### 💡 Sample Questions")
-    
+
     sample_questions = [
         "How do I transition from software engineering to AI engineering?",
         "What programming languages should I learn for AI roles?",
         "How important is a PhD for AI engineering positions?",
         "What portfolio projects best showcase AI engineering skills?",
         "What's the typical salary range for AI engineers?",
-        "How do I prepare for technical AI interviews?"
+        "How do I prepare for technical AI interviews?",
     ]
-    
+
     cols = st.columns(2)
     for i, question in enumerate(sample_questions):
         with cols[i % 2]:
             if st.button(f"💬 {question}", key=f"sample_{i}", use_container_width=True):
                 # Simulate clicking with this question
-                st.session_state.messages.append({
-                    "role": "user",
-                    "content": question,
-                    "timestamp": datetime.now().isoformat()
-                })
-                
+                st.session_state.messages.append(
+                    {
+                        "role": "user",
+                        "content": question,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+
                 with st.spinner("🤖 AI Mentor is thinking..."):
                     response = st.session_state.chat_client.send_message(
                         message=question,
                         conversation_id=st.session_state.conversation_id,
-                        user_id=st.session_state.user_id
+                        user_id=st.session_state.user_id,
                     )
-                    
+
                     if "error" not in response:
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": response.get("message", "Sorry, I couldn't generate a response."),
-                            "timestamp": datetime.now().isoformat()
-                        })
-                
+                        st.session_state.messages.append(
+                            {
+                                "role": "assistant",
+                                "content": response.get(
+                                    "message", "Sorry, I couldn't generate a response."
+                                ),
+                                "timestamp": datetime.now().isoformat(),
+                            }
+                        )
+
                 st.rerun()
 
 
@@ -514,34 +552,38 @@ def main():
     """Main application function."""
     # Initialize session state
     initialize_session_state()
-    
+
     # Render UI components
     render_header()
     render_sidebar()
-    
+
     # Main content area
     col1, col2 = st.columns([3, 1])
-    
+
     with col1:
         render_chat_interface()
         handle_user_input()
-    
+
     with col2:
         if not st.session_state.messages:
             render_sample_questions()
         else:
             st.markdown("### 📊 Chat Stats")
-            
+
             # Calculate some basic stats
-            user_messages = [msg for msg in st.session_state.messages if msg["role"] == "user"]
-            assistant_messages = [msg for msg in st.session_state.messages if msg["role"] == "assistant"]
-            
+            user_messages = [
+                msg for msg in st.session_state.messages if msg["role"] == "user"
+            ]
+            assistant_messages = [
+                msg for msg in st.session_state.messages if msg["role"] == "assistant"
+            ]
+
             col_a, col_b = st.columns(2)
             with col_a:
                 st.metric("Your Messages", len(user_messages))
             with col_b:
                 st.metric("AI Responses", len(assistant_messages))
-            
+
             # Show last response time if available
             if assistant_messages and "processing_time" in assistant_messages[-1]:
                 processing_time = assistant_messages[-1]["processing_time"]

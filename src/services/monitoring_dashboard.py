@@ -9,7 +9,7 @@ This module provides:
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 import structlog
@@ -26,14 +26,14 @@ router = APIRouter()
 async def monitoring_dashboard() -> HTMLResponse:
     """
     HTML monitoring dashboard for real-time system observability.
-    
+
     Provides:
     - System health overview
     - Real-time metrics
     - Performance charts
     - Error tracking
     """
-    
+
     dashboard_html = """
     <!DOCTYPE html>
     <html lang="en">
@@ -411,31 +411,31 @@ async def monitoring_dashboard() -> HTMLResponse:
     </body>
     </html>
     """
-    
+
     return HTMLResponse(content=dashboard_html, status_code=200)
 
 
 @router.get("/dashboard/api/metrics")
 async def dashboard_metrics_api(
     settings: Settings = Depends(get_settings_dependency),
-    timeframe: str = Query("1h", description="Timeframe for metrics (1h, 6h, 24h)")
+    timeframe: str = Query("1h", description="Timeframe for metrics (1h, 6h, 24h)"),
 ) -> Dict[str, Any]:
     """
     API endpoint for dashboard metrics data.
-    
+
     Args:
         timeframe: Time window for metrics aggregation
-        
+
     Returns:
         JSON containing dashboard metrics
     """
     monitoring = get_monitoring_service(settings)
-    
+
     try:
         # Get current metrics
         health_metrics = await monitoring.get_health_metrics()
         metrics_export = await monitoring.get_metrics_export()
-        
+
         # Calculate timeframe-specific metrics
         now = datetime.utcnow()
         if timeframe == "1h":
@@ -446,7 +446,7 @@ async def dashboard_metrics_api(
             time_window = now - timedelta(hours=24)
         else:
             time_window = now - timedelta(hours=1)
-        
+
         return {
             "timestamp": now.isoformat() + "Z",
             "timeframe": timeframe,
@@ -458,15 +458,14 @@ async def dashboard_metrics_api(
                 "error_rate": _calculate_error_rate(metrics_export),
                 "avg_response_time": _calculate_avg_response_time(metrics_export),
                 "active_sessions": _calculate_active_sessions(metrics_export),
-                "uptime_hours": health_metrics.get("uptime_hours", 0)
-            }
+                "uptime_hours": health_metrics.get("uptime_hours", 0),
+            },
         }
-        
+
     except Exception as e:
         logger.error("Failed to get dashboard metrics", error=str(e))
         raise HTTPException(
-            status_code=503,
-            detail="Dashboard metrics temporarily unavailable"
+            status_code=503, detail="Dashboard metrics temporarily unavailable"
         )
 
 
@@ -475,10 +474,11 @@ def _calculate_total_requests(metrics_export: Dict[str, Any]) -> int:
     try:
         counters = metrics_export.get("metrics", {}).get("counters", {})
         return sum(
-            count for name, count in counters.items()
+            count
+            for name, count in counters.items()
             if "chat_requests_total" in str(name)
         )
-    except:
+    except (KeyError, TypeError, AttributeError):
         return 0
 
 
@@ -488,11 +488,10 @@ def _calculate_error_rate(metrics_export: Dict[str, Any]) -> float:
         counters = metrics_export.get("metrics", {}).get("counters", {})
         total_requests = _calculate_total_requests(metrics_export)
         errors = sum(
-            count for name, count in counters.items()
-            if "errors_total" in str(name)
+            count for name, count in counters.items() if "errors_total" in str(name)
         )
         return (errors / total_requests * 100) if total_requests > 0 else 0.0
-    except:
+    except (KeyError, TypeError, AttributeError, ZeroDivisionError):
         return 0.0
 
 
@@ -504,7 +503,7 @@ def _calculate_avg_response_time(metrics_export: Dict[str, Any]) -> float:
             if "response_time" in str(name) or "duration" in str(name):
                 return hist.get("avg", 0.0)
         return 0.0
-    except:
+    except (KeyError, TypeError, AttributeError):
         return 0.0
 
 
@@ -516,5 +515,5 @@ def _calculate_active_sessions(metrics_export: Dict[str, Any]) -> int:
             if "active_sessions" in str(name):
                 return int(value)
         return 0
-    except:
+    except (KeyError, TypeError, AttributeError, ValueError):
         return 0
