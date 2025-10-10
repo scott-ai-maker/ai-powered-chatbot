@@ -96,7 +96,7 @@ class TestChatEndpoint:
         return ChatResponse(
             message="To transition to AI engineering, I recommend...",
             conversation_id="conv_456",
-            model_used="gpt-4",
+            ai_model="gpt-4",
             processing_time_ms=1500,
             token_usage={
                 "prompt_tokens": 50,

@@ -69,11 +69,27 @@ def sample_chat_response() -> ChatResponse:
     return ChatResponse(
         message="To transition to AI engineering, I recommend starting with...",
         conversation_id="test-conv-123",
-        model_used="gpt-4",
+        ai_model="gpt-4",
         processing_time_ms=1500,
+        token_usage={"prompt_tokens": 50, "completion_tokens": 100, "total_tokens": 150},
         confidence_score=0.95,
         response_type="career_advice",
     )
+
+
+@pytest.fixture
+def mock_chat_completion():
+    """Create a mock chat completion response."""
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = "Test AI response from mock completion"
+    mock_response.choices[0].finish_reason = "stop"
+    mock_response.usage.prompt_tokens = 50
+    mock_response.usage.completion_tokens = 100
+    mock_response.usage.total_tokens = 150
+    mock_response.model = "gpt-4"
+    
+    return mock_response
 
 
 @pytest.fixture
