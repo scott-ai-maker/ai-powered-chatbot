@@ -207,7 +207,7 @@ class MonitoringService:
                         "ai_tokens_used_total",
                         value=count,
                         tags={
-                            "model": token_usage.get("model", "unknown"),
+                            "model": str(token_usage.get("model", "unknown")),
                             "type": token_type,
                         },
                     )
@@ -440,7 +440,7 @@ def get_monitoring_service(settings: Settings) -> MonitoringService:
     return _monitoring_service
 
 
-def get_monitoring_dependency(settings: Settings = None) -> MonitoringService:
+def get_monitoring_dependency(settings: Optional[Settings] = None) -> MonitoringService:
     """FastAPI dependency for monitoring service."""
     from src.config.settings import get_settings_dependency
 

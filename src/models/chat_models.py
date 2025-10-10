@@ -7,7 +7,7 @@ provide excellent IDE support and documentation.
 """
 
 from datetime import datetime
-from typing import List, Optional, Literal
+from typing import Dict, List, Optional, Literal, Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, validator
@@ -40,7 +40,7 @@ class ChatRequest(BaseModel):
     max_tokens: Optional[int] = Field(None, ge=1, le=4000, description="Maximum response tokens")
     
     @validator('message')
-    def validate_message_content(cls, v):
+    def validate_message_content(cls, v: str) -> str:
         """Ensure message is not just whitespace."""
         if not v.strip():
             raise ValueError('Message cannot be empty or just whitespace')
@@ -57,7 +57,7 @@ class ChatResponse(BaseModel):
     # Metadata
     model_used: str = Field(..., description="AI model used for generation")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
-    token_usage: Optional[dict] = Field(None, description="Token usage statistics")
+    token_usage: Optional[Dict[str, Any]] = Field(None, description="Token usage statistics")
     
     # Quality metrics
     confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Response confidence")
@@ -156,7 +156,7 @@ class ErrorResponse(BaseModel):
     
     error_code: str = Field(..., description="Machine-readable error code")
     message: str = Field(..., description="Human-readable error message")
-    details: Optional[dict] = Field(None, description="Additional error details")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
     request_id: Optional[str] = Field(None, description="Request identifier for tracing")
     

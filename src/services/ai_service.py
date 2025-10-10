@@ -97,6 +97,8 @@ Provide practical, actionable advice that's specific to the user's background an
     async def health_check(self) -> bool:
         """Check if Azure OpenAI service is accessible."""
         try:
+            if self.client is None:
+                return False
             # Simple test request
             response = await self.client.chat.completions.create(
                 model=self.settings.azure_openai_deployment_name,
@@ -158,6 +160,8 @@ Provide practical, actionable advice that's specific to the user's background an
                 )
 
                 # Call Azure OpenAI
+                if self.client is None:
+                    raise RuntimeError("Azure OpenAI client not initialized")
                 response = await self.client.chat.completions.create(
                     model=self.settings.azure_openai_deployment_name,
                     messages=messages,
@@ -248,6 +252,8 @@ Provide practical, actionable advice that's specific to the user's background an
                 )
 
                 # Create streaming completion
+                if self.client is None:
+                    raise RuntimeError("Azure OpenAI client not initialized")
                 stream = await self.client.chat.completions.create(
                     model=self.settings.azure_openai_deployment_name,
                     messages=messages,

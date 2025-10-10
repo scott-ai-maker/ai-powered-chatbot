@@ -67,6 +67,7 @@ class Alert:
     acknowledged_by: Optional[str] = None
     message: str = ""
     additional_data: Optional[Dict[str, Any]] = None
+    _notified: bool = False
 
 
 class MonitoringAlertsService:
@@ -92,7 +93,7 @@ class MonitoringAlertsService:
         self._setup_default_alert_rules()
 
         # Start monitoring loop
-        self._monitoring_task = None
+        self._monitoring_task: Optional[asyncio.Task[None]] = None
         self._is_monitoring = False
 
     def _setup_default_alert_rules(self):

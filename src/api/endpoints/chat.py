@@ -27,9 +27,9 @@ router = APIRouter()
 
 
 # Global service instances (will be properly managed in main.py)
-_ai_service: AzureOpenAIService = None
-_rag_service: RAGEnhancedAIService = None
-_search_service: AzureCognitiveSearchService = None
+_ai_service: Optional[AzureOpenAIService] = None
+_rag_service: Optional[RAGEnhancedAIService] = None
+_search_service: Optional[AzureCognitiveSearchService] = None
 
 
 async def get_ai_service(
@@ -99,13 +99,15 @@ async def chat_completion(
 
         if use_rag:
             # Use RAG-enhanced response
-            rag_response = await rag_service.generate_rag_response(
+            # Create a new request with conversation_id for RAG
+            rag_request = ChatRequest(
                 message=request.message,
-                conversation_id=conversation_id,
                 user_id=request.user_id,
+                conversation_id=conversation_id,
                 temperature=request.temperature,
-                max_tokens=request.max_tokens,
+                max_tokens=request.max_tokens
             )
+            rag_response = await rag_service.generate_rag_response(rag_request)
 
             # Convert RAG response to ChatResponse format
             response = ChatResponse(
@@ -190,13 +192,14 @@ async def rag_chat_completion(
         )
 
         # Generate RAG-enhanced response
-        response = await rag_service.generate_rag_response(
+        rag_request = ChatRequest(
             message=request.message,
-            conversation_id=conversation_id,
             user_id=request.user_id,
+            conversation_id=conversation_id,
             temperature=request.temperature,
-            max_tokens=request.max_tokens,
+            max_tokens=request.max_tokens
         )
+        response = await rag_service.generate_rag_response(rag_request)
 
         logger.info(
             "RAG response generated",

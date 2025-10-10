@@ -87,7 +87,7 @@ class Settings(BaseSettings):
         return [host.strip() for host in self.allowed_hosts.split(",")]
 
     @validator("log_level")
-    def validate_log_level(cls, v):
+    def validate_log_level(cls, v: str) -> str:
         """Validate log level is one of the standard levels."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:
@@ -95,21 +95,21 @@ class Settings(BaseSettings):
         return v.upper()
 
     @validator("default_temperature")
-    def validate_temperature(cls, v):
+    def validate_temperature(cls, v: float) -> float:
         """Validate temperature is between 0 and 2."""
         if not 0 <= v <= 2:
             raise ValueError("Temperature must be between 0 and 2")
         return v
 
-    @validator("rag_min_confidence_score")
-    def validate_rag_confidence(cls, v):
+    @validator("rag_confidence_threshold")
+    def validate_rag_confidence(cls, v: float) -> float:
         """Validate RAG confidence score is between 0 and 1."""
         if not 0 <= v <= 1:
             raise ValueError("RAG confidence score must be between 0 and 1")
         return v
 
     @validator("rag_max_search_results")
-    def validate_rag_max_results(cls, v):
+    def validate_rag_max_results(cls, v: int) -> int:
         """Validate RAG max search results is reasonable."""
         if not 1 <= v <= 20:
             raise ValueError("RAG max search results must be between 1 and 20")

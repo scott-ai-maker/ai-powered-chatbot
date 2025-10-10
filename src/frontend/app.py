@@ -18,7 +18,7 @@ import json
 import os
 import uuid
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional, Any
 
 import streamlit as st
 import httpx
@@ -205,7 +205,7 @@ st.markdown(
 class ChatbotClient:
     """Client for communicating with the FastAPI backend."""
 
-    def __init__(self, base_url: str = None):
+    def __init__(self, base_url: Optional[str] = None):
         # Use environment variable for production, fallback to localhost for development
         if base_url is None:
             base_url = os.getenv(
