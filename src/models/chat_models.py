@@ -10,21 +10,22 @@ from datetime import datetime
 from typing import Dict, List, Optional, Literal, Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatMessage(BaseModel):
     """A single chat message in a conversation."""
     
+    model_config = {
+        "json_encoders": {
+            datetime: lambda v: v.isoformat()
+        }
+    }
+    
     id: str = Field(default_factory=lambda: str(uuid4()), description="Unique message identifier")
     content: str = Field(..., min_length=1, max_length=4000, description="Message content")
     role: Literal["user", "assistant", "system"] = Field(..., description="Message role")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class ChatRequest(BaseModel):
@@ -39,7 +40,8 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Response creativity (0-2)")
     max_tokens: Optional[int] = Field(None, ge=1, le=4000, description="Maximum response tokens")
     
-    @validator('message')
+    @field_validator('message')
+    @classmethod
     def validate_message_content(cls, v: str) -> str:
         """Ensure message is not just whitespace."""
         if not v.strip():
@@ -55,7 +57,7 @@ class ChatResponse(BaseModel):
     conversation_id: str = Field(..., description="Conversation identifier")
     
     # Metadata
-    model_used: str = Field(..., description="AI model used for generation")
+    ai_model: str = Field(..., description="AI model used for generation")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
     token_usage: Optional[Dict[str, Any]] = Field(None, description="Token usage statistics")
     
@@ -72,7 +74,7 @@ class ChatResponse(BaseModel):
                 "id": "resp_12345",
                 "message": "To transition into AI engineering, I'd recommend starting with...",
                 "conversation_id": "conv_67890",
-                "model_used": "gpt-4",
+                "ai_model": "gpt-4",
                 "processing_time_ms": 1250,
                 "confidence_score": 0.92,
                 "response_type": "career_advice"

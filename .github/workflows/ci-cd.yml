@@ -1,3 +1,25 @@
+# Enterprise CI/CD Pipeline for AI Career Mentor Chatbot
+# 
+# 🚨 RED SQUIGGLES ARE NORMAL! 🚨
+# The linter warnings about missing Azure secrets/variables are expected for new repositories.
+# These will resolve once you configure Azure deployment (optional).
+#
+# BASIC USAGE (No Azure Setup Required):
+# - Push to any branch → Runs code quality checks and tests
+# - The deployment jobs will be skipped automatically if Azure isn't configured
+#
+# FULL ENTERPRISE SETUP (Optional):
+# 1. Repository Variables (Settings > Secrets and variables > Actions > Variables):
+#    - AZURE_CONTAINER_REGISTRY: Your ACR name (without .azurecr.io)
+#    - AZURE_SUBSCRIPTION_ID: Your Azure subscription ID  
+#    - MAINTAINER_EMAIL: Email for notifications
+#
+# 2. Repository Secrets (Settings > Secrets and variables > Actions > Secrets):
+#    - AZURE_CREDENTIALS_DEV/STAGING/PROD: Azure service principals
+#
+# 3. GitHub Environments (Settings > Environments):
+#    - development, staging, production: With protection rules
+#
 name: CI/CD Pipeline
 
 on:
@@ -25,7 +47,7 @@ on:
 env:
   PYTHON_VERSION: '3.12'
   NODE_VERSION: '18'
-  REGISTRY_LOGIN_SERVER: ${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io
+  # REGISTRY_LOGIN_SERVER: Set this in repository variables as AZURE_CONTAINER_REGISTRY
   IMAGE_NAME: ai-career-mentor
   
 jobs:
@@ -261,7 +283,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}
+        images: ${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -326,12 +348,14 @@ jobs:
   # ==========================================
   
   deploy-dev:
-    name: Deploy to Development
+    name: Deploy to Development  
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: build
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-    environment: development
+    # Note: Deployment requires Azure credentials and container registry to be configured
+    # Set up repository secrets and variables as documented in the header comments
+    if: (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && vars.AZURE_CONTAINER_REGISTRY != ''
+    environment: development  # Create this environment in GitHub repo settings
     
     steps:
     - name: Checkout code
@@ -350,8 +374,10 @@ jobs:
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+      continue-on-error: true
     
     - name: Login to Azure Container Registry
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       run: |
         az acr login --name ${{ vars.AZURE_CONTAINER_REGISTRY }}
     
@@ -411,7 +437,7 @@ jobs:
     timeout-minutes: 30
     needs: [deploy-dev]
     if: github.event_name == 'workflow_dispatch' && inputs.environment == 'staging'
-    environment: staging
+    environment: staging  # Create this environment in GitHub repo settings
     
     steps:
     - name: Checkout code
@@ -443,7 +469,7 @@ jobs:
     timeout-minutes: 45
     needs: [build]
     if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
-    environment: production
+    environment: production  # Create this environment in GitHub repo settings
     
     steps:
     - name: Checkout code

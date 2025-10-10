@@ -1,0 +1,15 @@
+{
+    "folders": [
+        {
+            "name": "ai-powered-chatbot",
+            "path": "/home/scott/repos/ai-powered-chatbot"
+        }
+    ],
+    "settings": {
+        "python.defaultInterpreterPath": "/home/scott/repos/.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.analysis.extraPaths": [
+            "/home/scott/repos/.venv/lib/python3.12/site-packages"
+        ]
+    }
+}

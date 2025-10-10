@@ -96,7 +96,7 @@ class MonitoringService:
         self.start_time = datetime.utcnow()
 
         # Initialize Application Insights if configured
-        self.app_insights_enabled = bool(settings.applicationinsights_connection_string)
+        self.app_insights_enabled = bool(settings.azure_application_insights_connection_string)
 
         if self.app_insights_enabled:
             self._setup_application_insights()

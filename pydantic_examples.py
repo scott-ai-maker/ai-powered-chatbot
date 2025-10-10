@@ -7,8 +7,8 @@ Netflix, Uber, and other major tech companies.
 """
 
 from typing import List
-from pydantic import BaseModel, Field, validator
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
 
@@ -25,7 +25,8 @@ class User(BaseModel):
     email: str
     is_active: bool = True
 
-    @validator("email")
+    @field_validator("email")
+    @classmethod
     def validate_email(cls, v):
         if "@" not in v:
             raise ValueError("Invalid email address")
@@ -49,7 +50,7 @@ def pydantic_model_example():
     try:
         User(
             name="John",
-            age="not-a-number",  # This will fail
+            age="not-a-number",  # type: ignore[arg-type] # Intentionally invalid for demo
             email="invalid-email",  # This will also fail
         )
     except Exception as e:
@@ -63,19 +64,27 @@ def pydantic_model_example():
 
 class DatabaseSettings(BaseSettings):
     """Database configuration with automatic environment loading."""
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
     # These will automatically load from environment variables
-    db_host: str = Field(default="localhost", env="DATABASE_HOST")
-    db_port: int = Field(default=5432, env="DATABASE_PORT")
-    db_name: str = Field(..., env="DATABASE_NAME")  # Required field
-    db_user: str = Field(..., env="DATABASE_USER")  # Required field
-    db_password: str = Field(..., env="DATABASE_PASSWORD")  # Required field
+    db_host: str = "localhost"
+    db_port: int = 5432
+    db_name: str = "mydb"  # Default for development
+    db_user: str = "user"  # Default for development
+    db_password: str = "password"  # Default for development
 
     # Optional settings with defaults
-    db_pool_size: int = Field(default=10, env="DATABASE_POOL_SIZE")
-    db_timeout: float = Field(default=30.0, env="DATABASE_TIMEOUT")
+    db_pool_size: int = 10
+    db_timeout: float = 30.0
 
-    @validator("db_port")
+    @field_validator("db_port")
+    @classmethod
     def validate_port(cls, v):
         if not 1 <= v <= 65535:
             raise ValueError("Port must be between 1 and 65535")
@@ -86,32 +95,34 @@ class DatabaseSettings(BaseSettings):
         """Generate database connection string."""
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
 
 class AIServiceSettings(BaseSettings):
     """AI service configuration - similar to our chatbot config."""
-
-    # Azure OpenAI settings
-    openai_endpoint: str = Field(..., env="OPENAI_ENDPOINT")
-    openai_key: str = Field(..., env="OPENAI_KEY")
-    openai_model: str = Field(default="gpt-4", env="OPENAI_MODEL")
-
-    # Chat settings
-    max_tokens: int = Field(default=1000, env="MAX_TOKENS")
-    temperature: float = Field(default=0.7, env="TEMPERATURE")
-    system_prompt: str = Field(
-        default="You are a helpful AI career mentor.", env="SYSTEM_PROMPT"
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
     )
 
-    # Advanced settings
-    allowed_domains: str = Field(default="localhost,127.0.0.1", env="ALLOWED_DOMAINS")
-    rate_limit: int = Field(default=100, env="RATE_LIMIT")
-    debug_mode: bool = Field(default=False, env="DEBUG")
+    # Azure OpenAI settings
+    openai_endpoint: str = "https://your-openai.openai.azure.com/"
+    openai_key: str = "your-openai-key"
+    openai_model: str = "gpt-4"
 
-    @validator("temperature")
+    # Chat settings
+    max_tokens: int = 1000
+    temperature: float = 0.7
+    system_prompt: str = "You are a helpful AI career mentor."
+
+    # Advanced settings
+    allowed_domains: str = "localhost,127.0.0.1"
+    rate_limit: int = 100
+    debug_mode: bool = False
+
+    @field_validator("temperature")
+    @classmethod
     def validate_temperature(cls, v):
         if not 0 <= v <= 2:
             raise ValueError("Temperature must be between 0 and 2")

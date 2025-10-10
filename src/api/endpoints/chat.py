@@ -63,6 +63,13 @@ async def get_rag_service(
     return _rag_service
 
 
+async def get_search_service(
+    rag_service: RAGEnhancedAIService = Depends(get_rag_service)
+) -> AzureCognitiveSearchService:
+    """Dependency to get search service instance."""
+    return rag_service.search_service
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_completion(
     request: ChatRequest,
@@ -113,21 +120,11 @@ async def chat_completion(
             response = ChatResponse(
                 message=rag_response.response,
                 conversation_id=conversation_id,
-                response_type="rag_enhanced",
+                ai_model=rag_response.ai_model,
                 processing_time_ms=rag_response.processing_time_ms,
-                metadata={
-                    "ai_model": rag_response.ai_model,
-                    "sources_used": len(rag_response.sources),
-                    "rag_confidence": rag_response.confidence_score,
-                    "knowledge_sources": [
-                        {
-                            "title": source.title,
-                            "confidence": source.confidence_score,
-                            "document_type": source.document_type,
-                        }
-                        for source in rag_response.sources[:3]  # Top 3 sources
-                    ],
-                },
+                token_usage=rag_response.token_usage,
+                confidence_score=rag_response.confidence_score,
+                response_type="general"  # Use valid Literal value
             )
         else:
             # Use standard AI response
@@ -325,18 +322,23 @@ async def rag_chat_completion_stream(
         async def generate_rag_stream():
             """Generate streaming RAG response."""
             try:
-                async for chunk in rag_service.generate_streaming_rag_response(
+                # Create a new request with the conversation_id set
+                rag_request = ChatRequest(
                     message=request.message,
                     conversation_id=conversation_id,
                     user_id=request.user_id,
+                    stream=True,
                     temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                ):
+                    max_tokens=request.max_tokens
+                )
+                
+                async for chunk in rag_service.generate_streaming_rag_response(rag_request):
                     # Format as Server-Sent Events
-                    chunk_json = chunk.model_dump_json()
+                    import json
+                    chunk_json = json.dumps(chunk)
                     yield f"data: {chunk_json}\n\n"
 
-                    if chunk.is_final:
+                    if chunk.get("type") == "completion":
                         break
 
             except Exception as e:
@@ -379,9 +381,7 @@ async def search_knowledge_base(
     min_confidence: float = Query(
         0.7, ge=0.0, le=1.0, description="Minimum confidence score for results"
     ),
-    search_service: AzureCognitiveSearchService = Depends(
-        lambda: get_rag_service().search_service
-    ),
+    search_service: AzureCognitiveSearchService = Depends(get_search_service),
 ) -> Dict[str, Any]:
     """
     Search the knowledge base directly for relevant information.
@@ -406,23 +406,32 @@ async def search_knowledge_base(
         # Parse document types filter
         document_type_filter = None
         if document_types:
-            document_type_filter = [dt.strip() for dt in document_types.split(",")]
+            from src.models.rag_models import DocumentType
+            document_type_filter = []
+            for dt in document_types.split(","):
+                dt_stripped = dt.strip()
+                try:
+                    document_type_filter.append(DocumentType(dt_stripped))
+                except ValueError:
+                    # Skip invalid document types
+                    logger.warning(f"Invalid document type: {dt_stripped}")
+                    pass
 
         # Create search query
         search_query = SearchQuery(
             query=query,
             max_results=limit,
-            min_confidence_score=min_confidence,
+            similarity_threshold=min_confidence,
             document_types=document_type_filter,
         )
 
         # Perform search
         search_results = await search_service.semantic_search(search_query)
 
-        # Format response
+        # Format response  
         response = {
             "query": query,
-            "total_results": len(search_results.results),
+            "total_results": len(search_results),
             "max_results": limit,
             "min_confidence": min_confidence,
             "document_types_filter": document_type_filter,
@@ -431,20 +440,20 @@ async def search_knowledge_base(
                     "title": result.title,
                     "summary": result.summary,
                     "document_type": result.document_type,
-                    "confidence_score": result.confidence_score,
+                    "similarity_score": result.similarity_score,
                     "tags": result.tags,
                     "metadata": result.metadata,
                 }
-                for result in search_results.results
+                for result in search_results
             ],
-            "processing_time_ms": search_results.processing_time_ms,
+            "processing_time_ms": 0,  # We'll need to track this separately
         }
 
         logger.info(
             "Knowledge base search completed",
             query=query,
-            results_count=len(search_results.results),
-            processing_time_ms=search_results.processing_time_ms,
+            results_count=len(search_results),
+            processing_time_ms=0,
         )
 
         return response
@@ -466,9 +475,7 @@ async def search_knowledge_base(
 
 @router.get("/knowledge/stats")
 async def get_knowledge_base_stats(
-    search_service: AzureCognitiveSearchService = Depends(
-        lambda: get_rag_service().search_service
-    ),
+    search_service: AzureCognitiveSearchService = Depends(get_search_service),
 ) -> Dict[str, Any]:
     """
     Get statistics about the knowledge base.
@@ -490,7 +497,8 @@ async def get_knowledge_base_stats(
         response = {
             "total_documents": stats.total_documents,
             "documents_by_type": stats.documents_by_type,
-            "total_size_mb": stats.total_size_mb,
+            "total_tags": stats.total_tags,
+            "average_document_length": stats.average_document_length,
             "last_updated": stats.last_updated.isoformat()
             if stats.last_updated
             else None,

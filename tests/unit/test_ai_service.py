@@ -8,9 +8,10 @@ They show professional testing practices for AI service layers.
 
 import pytest
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from openai.types import CompletionUsage
 from openai._exceptions import APIError, RateLimitError, APITimeoutError
 
 from src.services.ai_service import AzureOpenAIService
@@ -32,6 +33,8 @@ class TestAzureOpenAIService:
             message="How do I transition to AI engineering?",
             user_id="user_123",
             conversation_id="conv_456",
+            temperature=0.7,
+            max_tokens=1024,
         )
 
     @pytest.fixture
@@ -52,7 +55,7 @@ class TestAzureOpenAIService:
                     finish_reason="stop",
                 )
             ],
-            usage={"prompt_tokens": 50, "completion_tokens": 100, "total_tokens": 150},
+            usage=CompletionUsage(prompt_tokens=50, completion_tokens=100, total_tokens=150),
         )
 
     async def test_service_initialization(self, test_settings):
@@ -61,7 +64,7 @@ class TestAzureOpenAIService:
 
         assert service.settings == test_settings
         assert service.client is not None
-        assert service.conversation_history == {}
+        assert service._conversation_contexts == {}
 
     async def test_generate_response_success(
         self, service, sample_chat_request, mock_chat_completion
@@ -124,7 +127,8 @@ class TestAzureOpenAIService:
     ):
         """Test response generation with custom parameters."""
         request = ChatRequest(
-            message="Test message", user_id="user_123", temperature=0.8, max_tokens=2000
+            message="Test message", user_id="user_123", conversation_id="conv_123", 
+            temperature=0.8, max_tokens=2000
         )
 
         service.client.chat.completions.create = AsyncMock(
@@ -141,8 +145,9 @@ class TestAzureOpenAIService:
     async def test_generate_response_api_error(self, service, sample_chat_request):
         """Test handling of OpenAI API errors."""
         # Mock API error
+        mock_request = Mock()
         service.client.chat.completions.create = AsyncMock(
-            side_effect=APIError("API Error occurred")
+            side_effect=APIError("API Error occurred", request=mock_request, body=None)
         )
 
         with pytest.raises(APIError):
@@ -152,8 +157,9 @@ class TestAzureOpenAIService:
         self, service, sample_chat_request
     ):
         """Test handling of rate limit errors."""
+        mock_response = Mock()
         service.client.chat.completions.create = AsyncMock(
-            side_effect=RateLimitError("Rate limit exceeded", response=None, body=None)
+            side_effect=RateLimitError("Rate limit exceeded", response=mock_response, body=None)
         )
 
         with pytest.raises(RateLimitError):
@@ -161,8 +167,9 @@ class TestAzureOpenAIService:
 
     async def test_generate_response_timeout_error(self, service, sample_chat_request):
         """Test handling of timeout errors."""
+        mock_request = Mock()
         service.client.chat.completions.create = AsyncMock(
-            side_effect=APITimeoutError("Request timed out")
+            side_effect=APITimeoutError(request=mock_request)
         )
 
         with pytest.raises(APITimeoutError):
@@ -172,7 +179,11 @@ class TestAzureOpenAIService:
         """Test conversation history is properly managed."""
         conv_id = "test_conv_123"
         request = ChatRequest(
-            message="First message", user_id="user_123", conversation_id=conv_id
+            message="First message", 
+            user_id="user_123", 
+            conversation_id=conv_id,
+            temperature=0.7,
+            max_tokens=1000
         )
 
         # Mock successful response
@@ -190,7 +201,7 @@ class TestAzureOpenAIService:
                     finish_reason="stop",
                 )
             ],
-            usage={"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -236,7 +247,7 @@ class TestAzureOpenAIService:
                     finish_reason="stop",
                 )
             ],
-            usage={"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -244,7 +255,11 @@ class TestAzureOpenAIService:
         # Add several messages to exceed limit
         for i in range(5):
             request = ChatRequest(
-                message=f"Message {i}", user_id="user_123", conversation_id=conv_id
+                message=f"Message {i}", 
+                user_id="user_123", 
+                conversation_id=conv_id,
+                temperature=0.7,
+                max_tokens=1000
             )
             await service.generate_response(request)
 
@@ -312,7 +327,12 @@ class TestAzureOpenAIServiceStreaming:
     def streaming_request(self):
         """Create a streaming chat request."""
         return ChatRequest(
-            message="Tell me about AI careers", user_id="user_123", stream=True
+            message="Tell me about AI careers", 
+            user_id="user_123", 
+            stream=True,
+            conversation_id="test_conv",
+            temperature=0.7,
+            max_tokens=1000
         )
 
     async def test_generate_streaming_response_success(
@@ -338,8 +358,9 @@ class TestAzureOpenAIServiceStreaming:
 
     async def test_streaming_error_handling(self, service, streaming_request):
         """Test error handling in streaming mode."""
+        mock_request = Mock()
         service.client.chat.completions.create = AsyncMock(
-            side_effect=APIError("Streaming error")
+            side_effect=APIError("Streaming error", request=mock_request, body=None)
         )
 
         with pytest.raises(APIError):
@@ -381,7 +402,13 @@ class TestAzureOpenAIServiceEdgeCases:
         """Test handling of requests with empty messages."""
         # This should be caught by Pydantic validation before reaching the service
         with pytest.raises(Exception):  # ValidationError from Pydantic
-            ChatRequest(message="", user_id="user_123")
+            ChatRequest(
+                message="", 
+                user_id="user_123",
+                conversation_id="test_conv",
+                temperature=0.7,
+                max_tokens=1000
+            )
 
     async def test_very_long_conversation_history(self, service):
         """Test handling of very long conversation histories."""
@@ -401,7 +428,11 @@ class TestAzureOpenAIServiceEdgeCases:
 
         # Make a request
         request = ChatRequest(
-            message="New message", user_id="user_123", conversation_id=conv_id
+            message="New message", 
+            user_id="user_123", 
+            conversation_id=conv_id,
+            temperature=0.7,
+            max_tokens=1000
         )
 
         mock_completion = ChatCompletion(
@@ -416,7 +447,7 @@ class TestAzureOpenAIServiceEdgeCases:
                     finish_reason="stop",
                 )
             ],
-            usage={"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -447,7 +478,7 @@ class TestAzureOpenAIServiceEdgeCases:
                     finish_reason="stop",
                 )
             ],
-            usage={"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -455,7 +486,11 @@ class TestAzureOpenAIServiceEdgeCases:
         # Create multiple concurrent requests
         requests = [
             ChatRequest(
-                message=f"Message {i}", user_id="user_123", conversation_id=conv_id
+                message=f"Message {i}", 
+                user_id="user_123", 
+                conversation_id=conv_id,
+                temperature=0.7,
+                max_tokens=1000
             )
             for i in range(3)
         ]

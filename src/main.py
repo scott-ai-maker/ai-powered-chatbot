@@ -78,9 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Azure Cognitive Search service initialized")
 
         if chat_module._rag_service is None:
-            chat_module._rag_service = RAGEnhancedAIService(
-                settings=settings, search_service=chat_module._search_service
-            )
+            chat_module._rag_service = RAGEnhancedAIService(settings=settings)
             logger.info("RAG-enhanced AI service initialized")
 
     except Exception as e:

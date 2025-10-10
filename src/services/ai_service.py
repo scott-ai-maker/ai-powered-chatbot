@@ -8,7 +8,7 @@ and streaming responses.
 
 import asyncio
 import time
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional, Literal
 from datetime import datetime
 
 import httpx
@@ -164,7 +164,7 @@ Provide practical, actionable advice that's specific to the user's background an
                     raise RuntimeError("Azure OpenAI client not initialized")
                 response = await self.client.chat.completions.create(
                     model=self.settings.azure_openai_deployment_name,
-                    messages=messages,
+                    messages=messages,  # type: ignore[arg-type]
                     temperature=temperature,
                     max_tokens=max_tokens,
                     top_p=0.95,
@@ -198,7 +198,7 @@ Provide practical, actionable advice that's specific to the user's background an
                 return ChatResponse(
                     message=ai_message,
                     conversation_id=conversation_id,
-                    model_used=self.settings.azure_openai_deployment_name,
+                    ai_model=self.settings.azure_openai_deployment_name,
                     processing_time_ms=processing_time,
                     token_usage={
                         "prompt_tokens": response.usage.prompt_tokens,
@@ -256,7 +256,7 @@ Provide practical, actionable advice that's specific to the user's background an
                     raise RuntimeError("Azure OpenAI client not initialized")
                 stream = await self.client.chat.completions.create(
                     model=self.settings.azure_openai_deployment_name,
-                    messages=messages,
+                    messages=messages,  # type: ignore[arg-type]
                     temperature=temperature,
                     max_tokens=max_tokens,
                     stream=True,
@@ -361,7 +361,7 @@ Provide practical, actionable advice that's specific to the user's background an
         if len(context) > 20:
             self._conversation_contexts[conversation_id] = context[-20:]
 
-    def _classify_response(self, response_content: str) -> str:
+    def _classify_response(self, response_content: str) -> Literal["career_advice", "general", "clarification"]:
         """Classify the type of response based on content."""
         content_lower = response_content.lower()
 

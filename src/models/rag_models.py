@@ -235,6 +235,17 @@ class RAGResponse(BaseModel):
                 "generation_time_ms": 1200
             }
         }
+    
+    # Backward compatibility properties
+    @property
+    def response(self) -> str:
+        """Alias for message field for backward compatibility."""
+        return self.message
+    
+    @property  
+    def sources(self) -> List[SearchResult]:
+        """Alias for retrieved_sources field for backward compatibility."""
+        return self.retrieved_sources
 
 
 class KnowledgeBaseStats(BaseModel):
@@ -286,6 +297,7 @@ class IndexingStatus(BaseModel):
         json_encoders = {
             datetime: lambda dt: dt.isoformat()
         }
+
 
 
 # Validation functions for enhanced data integrity would be added directly to model classes
