@@ -8,9 +8,10 @@ Demonstrates advanced AI engineering patterns for knowledge-enhanced responses.
 
 import logging
 import time
-from typing import List, Optional, AsyncGenerator, Dict, Any
+from typing import List, Optional, AsyncGenerator, Dict, Any, cast
 
 from openai import AsyncAzureOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from openai._exceptions import APIError, RateLimitError, APITimeoutError
 
 from src.config.settings import Settings
@@ -259,7 +260,7 @@ Guidelines:
             # Call OpenAI API
             completion = await self.client.chat.completions.create(
                 model=self.settings.azure_openai_deployment_name,
-                messages=messages,
+                messages=cast(List[ChatCompletionMessageParam], messages),
                 temperature=request.temperature or self.settings.default_temperature,
                 max_tokens=request.max_tokens or self.settings.max_tokens,
                 stream=False,
@@ -268,7 +269,7 @@ Guidelines:
             generation_time = int((time.time() - generation_start) * 1000)
 
             # Extract response
-            response_message = completion.choices[0].message.content
+            response_message = completion.choices[0].message.content or "Sorry, I couldn't generate a response."
 
             # Calculate confidence score based on retrieval quality
             confidence_score = None
@@ -431,7 +432,7 @@ Guidelines:
             full_response = ""
             async for chunk in await self.client.chat.completions.create(
                 model=self.settings.azure_openai_deployment_name,
-                messages=messages,
+                messages=cast(List[ChatCompletionMessageParam], messages),
                 temperature=request.temperature or self.settings.default_temperature,
                 max_tokens=request.max_tokens or self.settings.max_tokens,
                 stream=True,

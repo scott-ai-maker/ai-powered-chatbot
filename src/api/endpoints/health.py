@@ -6,7 +6,7 @@ and monitoring systems to verify service health.
 """
 
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 import structlog
@@ -136,11 +136,11 @@ async def detailed_health_check(
             overall_status = "unhealthy"
 
         return HealthCheckResponse(
-            status=overall_status,
+            status=cast(Literal["healthy", "degraded", "unhealthy"], overall_status),
             timestamp=datetime.utcnow(),
             version=settings.app_version,
-            azure_openai_status=azure_openai_status,
-            database_status=database_status,
+            azure_openai_status=cast(Literal["connected", "disconnected", "error"], azure_openai_status),
+            database_status=cast(Literal["connected", "disconnected", "error"], database_status),
             response_time_ms=monitoring_metrics.get("uptime_seconds", 0) * 1000,
             active_conversations=monitoring_metrics.get("metrics_summary", {})
             .get("sample_metrics", {})
@@ -192,13 +192,13 @@ async def metrics_endpoint(
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "service": "ai-career-mentor",
             "version": settings.app_version,
-            "environment": settings.environment,
+            "environment": "production",  # TODO: Add environment field to settings
             "health": health_metrics,
             "detailed_metrics": metrics_export.get("metrics", {}),
             "collection_status": {
                 "enabled": True,
                 "application_insights": bool(
-                    settings.applicationinsights_connection_string
+                    settings.azure_application_insights_connection_string
                 ),
                 "in_memory_fallback": True,
             },

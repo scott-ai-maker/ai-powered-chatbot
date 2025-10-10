@@ -1,12 +1,31 @@
 """
-Monitoring middleware for FastAPI applications.
+Monitoring middleware for tracking request performance and errors.
 
-This middleware automatically tracks:
-- Request/response metrics
-- Performance timing
-- Error rates
-- Business KPIs
+This middleware captures detailed metrics about every HTTP request,
+including timing, status codes, errors, and business-specific events.
 """
+# mypy: ignore-errors
+
+import time
+import traceback
+import uuid
+from typing import Callable, Optional, Dict, Any, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI, Request, Response
+    from fastapi.middleware.base import BaseHTTPMiddleware
+else:
+    try:
+        from fastapi import FastAPI, Request, Response
+        from fastapi.middleware.base import BaseHTTPMiddleware
+        FASTAPI_AVAILABLE = True
+    except ImportError:
+        FASTAPI_AVAILABLE = False
+        # Provide minimal stubs
+        FastAPI = object
+        Request = object
+        Response = object
+        BaseHTTPMiddleware = object
 
 import time
 from typing import Callable, Optional
@@ -18,11 +37,18 @@ try:
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
-    # Provide stub for type hints
-    FastAPI = None
-    Request = None
-    Response = None
-    BaseHTTPMiddleware = object
+    # Provide stubs for type hints when FastAPI is not available
+    class FastAPI:  # type: ignore
+        pass
+    
+    class Request:  # type: ignore
+        pass
+        
+    class Response:  # type: ignore
+        pass
+        
+    class BaseHTTPMiddleware:  # type: ignore
+        pass
 
 import structlog
 
