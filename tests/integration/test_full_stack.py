@@ -58,7 +58,7 @@ class TestFullApplicationFlow:
             "max_tokens": 2000,
         }
 
-        response = client.post("/api/chat", json=request_data)
+        response = client.post("/api/v1/chat/chat", json=request_data)
 
         # Verify response
         assert response.status_code == 200
@@ -107,7 +107,7 @@ class TestFullApplicationFlow:
             "conversation_id": conversation_id,
         }
 
-        response1 = client.post("/api/chat", json=first_request)
+        response1 = client.post("/api/v1/chat/chat", json=first_request)
         assert response1.status_code == 200
 
         # Second message in same conversation
@@ -117,7 +117,7 @@ class TestFullApplicationFlow:
             "conversation_id": conversation_id,
         }
 
-        response2 = client.post("/api/chat", json=second_request)
+        response2 = client.post("/api/v1/chat/chat", json=second_request)
         assert response2.status_code == 200
 
         # Verify both responses have same conversation_id
@@ -137,7 +137,7 @@ class TestFullApplicationFlow:
 
     async def test_health_check_integration(self, client, complete_environment):
         """Test health check integration."""
-        response = client.get("/api/health")
+        response = client.get("/api/v1/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -175,7 +175,7 @@ class TestFullApplicationFlow:
             "user_id": "error_test_user",
         }
 
-        response = client.post("/api/chat", json=request_data)
+        response = client.post("/api/v1/chat/chat", json=request_data)
 
         # Should return 500 error
         assert response.status_code == 500
@@ -203,7 +203,7 @@ class TestFullApplicationFlow:
         ]
 
         for invalid_request in invalid_requests:
-            response = client.post("/api/chat", json=invalid_request)
+            response = client.post("/api/v1/chat/chat", json=invalid_request)
             assert response.status_code == 422, (
                 f"Request should be invalid: {invalid_request}"
             )
@@ -229,7 +229,7 @@ class TestFullApplicationFlow:
         }
 
         start_time = time.time()
-        response = client.post("/api/chat", json=request_data)
+        response = client.post("/api/v1/chat/chat", json=request_data)
         end_time = time.time()
 
         assert response.status_code == 200
@@ -247,7 +247,7 @@ class TestFullApplicationFlow:
         """Test CORS functionality in full integration."""
         # Test preflight request
         preflight_response = client.options(
-            "/api/chat",
+            "/api/v1/chat/chat",
             headers={
                 "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "POST",
@@ -262,7 +262,7 @@ class TestFullApplicationFlow:
         request_data = {"message": "CORS test message", "user_id": "cors_test_user"}
 
         response = client.post(
-            "/api/chat", json=request_data, headers={"Origin": "http://localhost:3000"}
+            "/api/v1/chat/chat", json=request_data, headers={"Origin": "http://localhost:3000"}
         )
 
         # Should have CORS headers
@@ -290,7 +290,7 @@ class TestApplicationStateManagement:
         monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT_NAME", "startup-gpt-4")
 
         # Make a request to trigger startup
-        response = client.get("/api/health")
+        response = client.get("/api/v1/health")
 
         # Should succeed, indicating services initialized
         assert response.status_code == 200
@@ -311,7 +311,7 @@ class TestApplicationStateManagement:
         import concurrent.futures
 
         def make_request():
-            return client.get("/api/health")
+            return client.get("/api/v1/health")
 
         # Execute 5 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -350,7 +350,7 @@ class TestApplicationStateManagement:
                     "conversation_id": f"conv_{conv_id}",
                 }
 
-                response = client.post("/api/chat", json=request_data)
+                response = client.post("/api/v1/chat/chat", json=request_data)
                 assert response.status_code == 200
 
         # All requests should have succeeded without memory issues
@@ -411,7 +411,7 @@ class TestRealWorldScenarios:
                 "conversation_id": conversation_id,
             }
 
-            response = client.post("/api/chat", json=request_data)
+            response = client.post("/api/v1/chat/chat", json=request_data)
             assert response.status_code == 200
 
             data = response.json()
@@ -477,7 +477,7 @@ class TestRealWorldScenarios:
                     "conversation_id": user_info["conv_id"],
                 }
 
-                response = client.post("/api/chat", json=request_data)
+                response = client.post("/api/v1/chat/chat", json=request_data)
                 user_responses.append(response)
 
             return user_responses
@@ -515,11 +515,11 @@ class TestRealWorldScenarios:
 
         # Verify our endpoints are documented
         paths = schema["paths"]
-        assert "/api/health" in paths
-        assert "/api/chat" in paths
+        assert "/api/v1/health" in paths
+        assert "/api/v1/chat/chat" in paths
 
         # Verify endpoint documentation includes required information
-        chat_endpoint = paths["/api/chat"]["post"]
+        chat_endpoint = paths["/api/v1/chat/chat"]["post"]
         assert "summary" in chat_endpoint
         assert "requestBody" in chat_endpoint
         assert "responses" in chat_endpoint
