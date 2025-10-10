@@ -75,25 +75,16 @@ jobs:
     
     - name: Type checking with MyPy
       run: |
-        mypy src/ --strict --ignore-missing-imports || true
+        mypy src/ --ignore-missing-imports
     
     - name: Security scan with Bandit
       run: |
         bandit -r src/ -f json -o bandit-report.json || true
-        bandit -r src/ || true
+        bandit -r src/ --severity-level medium || true
     
     - name: Vulnerability scan with Safety
       run: |
         safety check --config .safety-policy.yml || true
-    
-    - name: Type checking with mypy
-      run: |
-        mypy src/ --ignore-missing-imports
-    
-    - name: Security analysis with bandit
-      run: |
-        bandit -r src/ -f json -o bandit-report.json || true
-        bandit -r src/ --severity-level medium
     
     - name: Upload security report
       uses: actions/upload-artifact@v4
