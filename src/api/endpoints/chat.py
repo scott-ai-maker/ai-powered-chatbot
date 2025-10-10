@@ -64,7 +64,7 @@ async def get_rag_service(
 
 
 async def get_search_service(
-    rag_service: RAGEnhancedAIService = Depends(get_rag_service)
+    rag_service: RAGEnhancedAIService = Depends(get_rag_service),
 ) -> AzureCognitiveSearchService:
     """Dependency to get search service instance."""
     return rag_service.search_service
@@ -124,7 +124,7 @@ async def chat_completion(
                 processing_time_ms=rag_response.processing_time_ms,
                 token_usage=rag_response.token_usage,
                 confidence_score=rag_response.confidence_score,
-                response_type="general"  # Use valid Literal value
+                response_type="general",  # Use valid Literal value
             )
         else:
             # Use standard AI response
@@ -329,12 +329,15 @@ async def rag_chat_completion_stream(
                     user_id=request.user_id,
                     stream=True,
                     temperature=request.temperature,
-                    max_tokens=request.max_tokens
+                    max_tokens=request.max_tokens,
                 )
-                
-                async for chunk in rag_service.generate_streaming_rag_response(rag_request):
+
+                async for chunk in rag_service.generate_streaming_rag_response(
+                    rag_request
+                ):
                     # Format as Server-Sent Events
                     import json
+
                     chunk_json = json.dumps(chunk)
                     yield f"data: {chunk_json}\n\n"
 
@@ -407,6 +410,7 @@ async def search_knowledge_base(
         document_type_filter = None
         if document_types:
             from src.models.rag_models import DocumentType
+
             document_type_filter = []
             for dt in document_types.split(","):
                 dt_stripped = dt.strip()
@@ -428,7 +432,7 @@ async def search_knowledge_base(
         # Perform search
         search_results = await search_service.semantic_search(search_query)
 
-        # Format response  
+        # Format response
         response = {
             "query": query,
             "total_results": len(search_results),

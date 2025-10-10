@@ -361,7 +361,9 @@ Provide practical, actionable advice that's specific to the user's background an
         if len(context) > 20:
             self._conversation_contexts[conversation_id] = context[-20:]
 
-    def _classify_response(self, response_content: str) -> Literal["career_advice", "general", "clarification"]:
+    def _classify_response(
+        self, response_content: str
+    ) -> Literal["career_advice", "general", "clarification"]:
         """Classify the type of response based on content."""
         content_lower = response_content.lower()
 
