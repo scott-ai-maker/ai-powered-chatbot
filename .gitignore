@@ -20,6 +20,7 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -47,10 +48,59 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-cover/
 
-# Virtual environments
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .venv
 env/
 venv/
@@ -58,7 +108,34 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDEs
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Ruff
+.ruff_cache/
+
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -74,46 +151,94 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Node.js
+# Node.js / Frontend
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+lerna-debug.log*
 .npm
-.yarn-integrity
-.pnp.*
+.eslintcache
+*.tsbuildinfo
 
-# Frontend build artifacts
-frontend/build/
-frontend/dist/
-frontend/coverage/
+# Frontend build outputs
+/frontend/build/
+/frontend/dist/
+/frontend/coverage/
+
+# Logs
+*.log
+logs/
+app.log
+test_output.log
+
+# Project specific
+cache/
+/src/cache/
+temp/
+uploaded_files/
+processed_files/
+
+# Test artifacts
+test_*.png
+test_*.jpg
+test_*.jpeg
+test_*.gif
+test_*.pdf
+test_*.docx
+
+# Runtime files (allow example files in docs/examples)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.pdf
+*.docx
+*.xlsx
+# But allow files in specific directories
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg
+!docs/**/*.gif
+!examples/**/*.png
+!examples/**/*.jpg
+!examples/**/*.jpeg
+!examples/**/*.gif
 
 # Azure
 .azure/
 
-# Local development
-.env.local
-.env.development
-.env.test
+# Docker
+.dockerignore
+
+# Streamlit
+.streamlit/
+
+# Security and scanning
+.bandit
+.safety-cache/
+.trivy-cache/
+bandit-report.json
+bandit-report.txt
+
+# Backup files
+*.backup
+*.bak
 
 # Temporary files
 *.tmp
 *.temp
 
-# Database
+# Database files
 *.db
 *.sqlite3
 
-# Jupyter Notebooks
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Streamlit
-.streamlit/
+# AI/ML specific
+models/
+checkpoints/
+model_cache/
+embeddings_cache/
+vector_store/

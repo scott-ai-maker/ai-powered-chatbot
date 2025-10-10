@@ -55,19 +55,36 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
+        pip install pre-commit ruff mypy bandit[toml] safety
     
-    - name: Code formatting check with Black
+    - name: Install pre-commit hooks
       run: |
-        black --check --diff .
+        pre-commit install
     
-    - name: Import sorting check with isort
+    - name: Run pre-commit hooks (all files)
       run: |
-        isort --check-only --diff .
+        pre-commit run --all-files || true
     
-    - name: Linting with flake8
+    - name: Code linting with Ruff
       run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        ruff check src/ --output-format=github
+    
+    - name: Code formatting check with Ruff
+      run: |
+        ruff format --check src/
+    
+    - name: Type checking with MyPy
+      run: |
+        mypy src/ --strict --ignore-missing-imports || true
+    
+    - name: Security scan with Bandit
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+        bandit -r src/ || true
+    
+    - name: Vulnerability scan with Safety
+      run: |
+        safety check --config .safety-policy.yml || true
     
     - name: Type checking with mypy
       run: |

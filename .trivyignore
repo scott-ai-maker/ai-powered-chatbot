@@ -1,0 +1,116 @@
+# Trivy security scanner configuration
+# Documentation: https://aquasecurity.github.io/trivy/latest/docs/
+
+# Scan settings
+scan:
+  # Skip files that match these patterns
+  skip-files:
+    - "**/.git/**"
+    - "**/node_modules/**" 
+    - "**/vendor/**"
+    - "**/.pytest_cache/**"
+    - "**/__pycache__/**"
+    - "**/htmlcov/**"
+    - "**/coverage.xml"
+    - "**/.coverage"
+    - "**/frontend/build/**"
+    - "**/frontend/dist/**"
+    - "**/frontend/coverage/**"
+    
+  # Skip directories
+  skip-dirs:
+    - .git
+    - node_modules
+    - __pycache__
+    - .pytest_cache
+    - htmlcov
+    - frontend/node_modules
+    - frontend/build
+    - frontend/dist
+
+# Vulnerability settings
+vulnerability:
+  # Severity levels to report: CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN
+  severity:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+
+  # Vulnerability types to check
+  type:
+    - os
+    - library
+
+# License scanning
+license:
+  # License categories to flag
+  forbidden:
+    - GPL-2.0
+    - GPL-3.0
+
+  # License categories to ignore  
+  ignored:
+    - MIT
+    - Apache-2.0
+    - BSD-3-Clause
+    - ISC
+
+# Misconfiguration scanning
+misconfiguration:
+  # Scan for Dockerfile issues
+  dockerfile: true
+  
+  # Scan for Kubernetes manifests
+  kubernetes: true
+  
+  # Scan for Terraform files
+  terraform: false
+
+# Secret scanning
+secret:
+  # Enable secret scanning
+  enabled: true
+  
+  # Skip entropy checks
+  skip-entropy: false
+
+# Output settings
+output:
+  # Output format: table, json, sarif, template
+  format: table
+  
+  # Template file for custom output
+  # template: "@contrib/gitlab.tpl"
+
+# Cache settings
+cache:
+  # Cache directory
+  dir: .trivy-cache
+  
+  # Clear cache before scan
+  clear: false
+
+# Database settings
+db:
+  # Skip database update
+  skip-update: false
+  
+  # Database repository
+  repository: ghcr.io/aquasecurity/trivy-db
+
+# Timeout settings
+timeout:
+  # Timeout for vulnerability scan (in seconds)
+  vulnerability: 300
+  
+  # Timeout for secret scan (in seconds)  
+  secret: 300
+
+# Ignore unfixed vulnerabilities
+ignore-unfixed: false
+
+# Exit code settings
+exit-code: 0
+
+# Quiet mode
+quiet: false
