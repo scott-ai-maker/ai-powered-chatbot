@@ -31,7 +31,7 @@ class TestHealthEndpoint:
 
     def test_health_check_response_model(self, client):
         """Test that health check response matches our model."""
-        response = client.get("/api/v1/health")
+        response = client.get("/api/v1/health/detailed")
 
         assert response.status_code == 200
         data = response.json()
@@ -41,15 +41,15 @@ class TestHealthEndpoint:
         assert health_response.status in ["healthy", "degraded", "unhealthy"]
         assert health_response.version is not None
 
-    @patch("src.services.ai_service.AzureOpenAIService")
-    def test_health_check_with_service_error(self, mock_service_class, client):
+    @patch("src.api.endpoints.health.AzureOpenAIService")
+    async def test_health_check_with_service_error(self, mock_service_class, client):
         """Test health check when AI service has issues."""
         # Mock the service to raise an error during health check
         mock_service = AsyncMock()
         mock_service.health_check.side_effect = Exception("Service unavailable")
-        mock_service_class.return_value = mock_service
+        mock_service_class.return_value.__aenter__.return_value = mock_service
 
-        response = client.get("/api/v1/health")
+        response = client.get("/api/v1/health/detailed")
 
         # Should still return 200 but with degraded status
         assert response.status_code == 200

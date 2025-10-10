@@ -145,10 +145,10 @@ async def detailed_health_check(
             database_status=cast(
                 Literal["connected", "disconnected", "error"], database_status
             ),
-            response_time_ms=monitoring_metrics.get("uptime_seconds", 0) * 1000,
-            active_conversations=monitoring_metrics.get("metrics_summary", {})
+            response_time_ms=int(monitoring_metrics.get("uptime_seconds", 0) * 1000),
+            active_conversations=int(monitoring_metrics.get("metrics_summary", {})
             .get("sample_metrics", {})
-            .get("chat_requests", 0),
+            .get("chat_requests", 0)),
         )
 
     except Exception as e:
