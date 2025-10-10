@@ -8,7 +8,7 @@ and streaming responses.
 
 import asyncio
 import time
-from typing import AsyncGenerator, Dict, List, Optional, Literal, Sequence, cast
+from typing import AsyncGenerator, Dict, List, Optional, Literal, cast
 from datetime import datetime
 
 import httpx
