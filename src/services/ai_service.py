@@ -8,12 +8,13 @@ and streaming responses.
 
 import asyncio
 import time
-from typing import AsyncGenerator, Dict, List, Optional, Literal
+from typing import AsyncGenerator, Dict, List, Optional, Literal, Sequence, cast
 from datetime import datetime
 
 import httpx
 import structlog
 from openai import AsyncAzureOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -164,7 +165,7 @@ Provide practical, actionable advice that's specific to the user's background an
                     raise RuntimeError("Azure OpenAI client not initialized")
                 response = await self.client.chat.completions.create(
                     model=self.settings.azure_openai_deployment_name,
-                    messages=messages,  # type: ignore[arg-type]
+                    messages=cast(List[ChatCompletionMessageParam], messages),
                     temperature=temperature,
                     max_tokens=max_tokens,
                     top_p=0.95,
@@ -256,7 +257,7 @@ Provide practical, actionable advice that's specific to the user's background an
                     raise RuntimeError("Azure OpenAI client not initialized")
                 stream = await self.client.chat.completions.create(
                     model=self.settings.azure_openai_deployment_name,
-                    messages=messages,  # type: ignore[arg-type]
+                    messages=cast(List[ChatCompletionMessageParam], messages),
                     temperature=temperature,
                     max_tokens=max_tokens,
                     stream=True,
