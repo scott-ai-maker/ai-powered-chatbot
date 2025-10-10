@@ -68,8 +68,8 @@ class ChatResponse(BaseModel):
         description="Type of response provided"
     )
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "id": "resp_12345",
                 "message": "To transition into AI engineering, I'd recommend starting with...",
@@ -80,6 +80,7 @@ class ChatResponse(BaseModel):
                 "response_type": "career_advice"
             }
         }
+    }
 
 
 class ConversationSummary(BaseModel):
@@ -92,10 +93,11 @@ class ConversationSummary(BaseModel):
     last_activity: datetime = Field(..., description="Last message timestamp")
     topics_discussed: List[str] = Field(default_factory=list, description="Main topics covered")
     
-    class Config:
-        json_encoders = {
+    model_config = {
+        "json_encoders": {
             datetime: lambda v: v.isoformat()
         }
+    }
 
 
 class StreamingChatChunk(BaseModel):
@@ -106,8 +108,8 @@ class StreamingChatChunk(BaseModel):
     content: str = Field(..., description="Chunk content")
     is_final: bool = Field(default=False, description="Whether this is the final chunk")
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "id": "chunk_001",
                 "conversation_id": "conv_67890",
@@ -115,6 +117,7 @@ class StreamingChatChunk(BaseModel):
                 "is_final": False
             }
         }
+    }
 
 
 class HealthCheckResponse(BaseModel):
@@ -136,11 +139,11 @@ class HealthCheckResponse(BaseModel):
     response_time_ms: Optional[int] = Field(None, description="Average response time")
     active_conversations: Optional[int] = Field(None, description="Currently active conversations")
     
-    class Config:
-        json_encoders = {
+    model_config = {
+        "json_encoders": {
             datetime: lambda v: v.isoformat()
-        }
-        schema_extra = {
+        },
+        "json_schema_extra": {
             "example": {
                 "status": "healthy",
                 "timestamp": "2025-10-04T10:30:00Z",
@@ -151,6 +154,7 @@ class HealthCheckResponse(BaseModel):
                 "active_conversations": 12
             }
         }
+    }
 
 
 class ErrorResponse(BaseModel):
@@ -162,11 +166,11 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
     request_id: Optional[str] = Field(None, description="Request identifier for tracing")
     
-    class Config:
-        json_encoders = {
+    model_config = {
+        "json_encoders": {
             datetime: lambda v: v.isoformat()
-        }
-        schema_extra = {
+        },
+        "json_schema_extra": {
             "example": {
                 "error_code": "INVALID_MESSAGE",
                 "message": "Message content cannot be empty",
@@ -174,3 +178,4 @@ class ErrorResponse(BaseModel):
                 "request_id": "req_abc123"
             }
         }
+    }

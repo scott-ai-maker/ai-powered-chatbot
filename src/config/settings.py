@@ -109,13 +109,6 @@ class Settings(BaseSettings):
             raise ValueError("RAG max search results must be between 1 and 20")
         return v
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-
 
 @lru_cache()
 def get_settings() -> Settings:
