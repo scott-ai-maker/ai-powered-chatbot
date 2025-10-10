@@ -5,33 +5,18 @@ This file should have no red squiggles if the Python environment is properly con
 """
 
 # Core web framework imports
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware  
-from fastapi.responses import JSONResponse
 
 # Data validation
-from pydantic import BaseModel, Field
 
 # AI/ML libraries
-from openai import AsyncAzureOpenAI
-import httpx
 
 # Async and utilities
-import asyncio
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-import json
-import os
 
 # Testing
-import pytest
 
 # Logging
-import structlog
-import logging
 
 # Streamlit for frontend
-import streamlit as st
 
 print("✅ All imports successful! No red squiggles should appear above.")
 

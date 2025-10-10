@@ -24,7 +24,9 @@ class TestAzureOpenAIService:
     @pytest.fixture
     def service(self, test_settings, mock_openai_client):
         """Create an AI service instance for testing."""
-        return AzureOpenAIService(test_settings)
+        service = AzureOpenAIService(test_settings)
+        service.client = mock_openai_client  # Set mock client directly for testing
+        return service
 
     @pytest.fixture
     def sample_chat_request(self):
@@ -55,7 +57,9 @@ class TestAzureOpenAIService:
                     finish_reason="stop",
                 )
             ],
-            usage=CompletionUsage(prompt_tokens=50, completion_tokens=100, total_tokens=150),
+            usage=CompletionUsage(
+                prompt_tokens=50, completion_tokens=100, total_tokens=150
+            ),
         )
 
     async def test_service_initialization(self, test_settings):
@@ -63,8 +67,27 @@ class TestAzureOpenAIService:
         service = AzureOpenAIService(test_settings)
 
         assert service.settings == test_settings
-        assert service.client is not None
+        assert service.client is None  # Client is None until context manager entry
         assert service._conversation_contexts == {}
+
+    async def test_service_context_manager(self, test_settings, monkeypatch):
+        """Test service as async context manager."""
+        # Mock AsyncAzureOpenAI to avoid actual API calls
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_client = AsyncMock()
+        mock_client.close = AsyncMock()  # Mock the close method
+
+        # Create a mock class that returns our mock client
+        mock_class = MagicMock(return_value=mock_client)
+        monkeypatch.setattr("src.services.ai_service.AsyncAzureOpenAI", mock_class)
+
+        service = AzureOpenAIService(test_settings)
+
+        async with service as svc:
+            assert svc.client is not None
+            assert svc.client == mock_client
+            assert svc is service
 
     async def test_generate_response_success(
         self, service, sample_chat_request, mock_chat_completion
@@ -76,13 +99,19 @@ class TestAzureOpenAIService:
         )
 
         # Generate response
-        response = await service.generate_response(sample_chat_request)
+        response = await service.generate_response(
+            message=sample_chat_request.message,
+            conversation_id=sample_chat_request.conversation_id,
+            user_id=sample_chat_request.user_id,
+            temperature=sample_chat_request.temperature,
+            max_tokens=sample_chat_request.max_tokens,
+        )
 
         # Verify response
         assert response.message == mock_chat_completion.choices[0].message.content
         assert response.conversation_id == sample_chat_request.conversation_id
-        assert response.model_used == mock_chat_completion.model
-        assert response.processing_time_ms > 0
+        assert response.ai_model == mock_chat_completion.model
+        assert response.processing_time_ms >= 0  # Timing might be 0 with mocked client
         assert response.token_usage == {
             "prompt_tokens": 50,
             "completion_tokens": 100,
@@ -101,7 +130,7 @@ class TestAzureOpenAIService:
         """Test response generation with existing conversation history."""
         # Add some conversation history
         conv_id = sample_chat_request.conversation_id
-        service.conversation_history[conv_id] = [
+        service._conversation_contexts[conv_id] = [
             ChatMessage(content="Hello", role="user"),
             ChatMessage(content="Hi there!", role="assistant"),
         ]
@@ -110,7 +139,13 @@ class TestAzureOpenAIService:
             return_value=mock_chat_completion
         )
 
-        await service.generate_response(sample_chat_request)
+        await service.generate_response(
+            message=sample_chat_request.message,
+            conversation_id=sample_chat_request.conversation_id,
+            user_id=sample_chat_request.user_id,
+            temperature=sample_chat_request.temperature,
+            max_tokens=sample_chat_request.max_tokens,
+        )
 
         # Verify history was included in the call
         call_args = service.client.chat.completions.create.call_args
@@ -127,15 +162,24 @@ class TestAzureOpenAIService:
     ):
         """Test response generation with custom parameters."""
         request = ChatRequest(
-            message="Test message", user_id="user_123", conversation_id="conv_123", 
-            temperature=0.8, max_tokens=2000
+            message="Test message",
+            user_id="user_123",
+            conversation_id="conv_123",
+            temperature=0.8,
+            max_tokens=2000,
         )
 
         service.client.chat.completions.create = AsyncMock(
             return_value=mock_chat_completion
         )
 
-        await service.generate_response(request)
+        await service.generate_response(
+            message=request.message,
+            conversation_id=request.conversation_id,
+            user_id=request.user_id,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+        )
 
         # Verify custom parameters were used
         call_args = service.client.chat.completions.create.call_args
@@ -151,7 +195,13 @@ class TestAzureOpenAIService:
         )
 
         with pytest.raises(APIError):
-            await service.generate_response(sample_chat_request)
+            await service.generate_response(
+                message=sample_chat_request.message,
+                conversation_id=sample_chat_request.conversation_id,
+                user_id=sample_chat_request.user_id,
+                temperature=sample_chat_request.temperature,
+                max_tokens=sample_chat_request.max_tokens,
+            )
 
     async def test_generate_response_rate_limit_error(
         self, service, sample_chat_request
@@ -159,11 +209,19 @@ class TestAzureOpenAIService:
         """Test handling of rate limit errors."""
         mock_response = Mock()
         service.client.chat.completions.create = AsyncMock(
-            side_effect=RateLimitError("Rate limit exceeded", response=mock_response, body=None)
+            side_effect=RateLimitError(
+                "Rate limit exceeded", response=mock_response, body=None
+            )
         )
 
         with pytest.raises(RateLimitError):
-            await service.generate_response(sample_chat_request)
+            await service.generate_response(
+                message=sample_chat_request.message,
+                conversation_id=sample_chat_request.conversation_id,
+                user_id=sample_chat_request.user_id,
+                temperature=sample_chat_request.temperature,
+                max_tokens=sample_chat_request.max_tokens,
+            )
 
     async def test_generate_response_timeout_error(self, service, sample_chat_request):
         """Test handling of timeout errors."""
@@ -173,17 +231,23 @@ class TestAzureOpenAIService:
         )
 
         with pytest.raises(APITimeoutError):
-            await service.generate_response(sample_chat_request)
+            await service.generate_response(
+                message=sample_chat_request.message,
+                conversation_id=sample_chat_request.conversation_id,
+                user_id=sample_chat_request.user_id,
+                temperature=sample_chat_request.temperature,
+                max_tokens=sample_chat_request.max_tokens,
+            )
 
     async def test_conversation_history_management(self, service):
         """Test conversation history is properly managed."""
         conv_id = "test_conv_123"
         request = ChatRequest(
-            message="First message", 
-            user_id="user_123", 
+            message="First message",
+            user_id="user_123",
             conversation_id=conv_id,
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
         )
 
         # Mock successful response
@@ -201,17 +265,25 @@ class TestAzureOpenAIService:
                     finish_reason="stop",
                 )
             ],
-            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+            usage=CompletionUsage(
+                prompt_tokens=10, completion_tokens=10, total_tokens=20
+            ),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
 
         # Generate first response
-        await service.generate_response(request)
+        await service.generate_response(
+            message=request.message,
+            conversation_id=request.conversation_id,
+            user_id=request.user_id,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+        )
 
         # Check conversation history was created and updated
-        assert conv_id in service.conversation_history
-        history = service.conversation_history[conv_id]
+        assert conv_id in service._conversation_contexts
+        history = service._conversation_contexts[conv_id]
         assert len(history) == 2  # User message + assistant response
         assert history[0].content == "First message"
         assert history[0].role == "user"
@@ -220,10 +292,16 @@ class TestAzureOpenAIService:
 
         # Send second message
         request.message = "Second message"
-        await service.generate_response(request)
+        await service.generate_response(
+            message=request.message,
+            conversation_id=request.conversation_id,
+            user_id=request.user_id,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+        )
 
         # Verify history grew
-        history = service.conversation_history[conv_id]
+        history = service._conversation_contexts[conv_id]
         assert len(history) == 4
         assert history[2].content == "Second message"
         assert history[3].content == "First response"  # Mock returns same response
@@ -233,7 +311,7 @@ class TestAzureOpenAIService:
         conv_id = "test_conv_limit"
 
         # Create service with small history limit for testing
-        service.max_history_messages = 4  # System + 3 messages
+        service.settings.max_conversation_history = 4  # System + 3 messages
 
         mock_completion = ChatCompletion(
             id="chatcmpl-123",
@@ -247,7 +325,9 @@ class TestAzureOpenAIService:
                     finish_reason="stop",
                 )
             ],
-            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+            usage=CompletionUsage(
+                prompt_tokens=10, completion_tokens=10, total_tokens=20
+            ),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -255,44 +335,50 @@ class TestAzureOpenAIService:
         # Add several messages to exceed limit
         for i in range(5):
             request = ChatRequest(
-                message=f"Message {i}", 
-                user_id="user_123", 
+                message=f"Message {i}",
+                user_id="user_123",
                 conversation_id=conv_id,
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=1000,
             )
-            await service.generate_response(request)
+            await service.generate_response(
+                message=request.message,
+                conversation_id=request.conversation_id,
+                user_id=request.user_id,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+            )
 
         # Verify history was trimmed
-        history = service.conversation_history[conv_id]
-        assert len(history) <= service.max_history_messages
+        history = service._conversation_contexts[conv_id]
+        assert len(history) <= service.settings.max_conversation_history
 
         # Verify most recent messages are kept
         assert history[-1].content == "Response"
         assert history[-2].content == "Message 4"
 
-    async def test_clear_conversation_history(self, service):
+    async def test_clear_conversation_context(self, service):
         """Test clearing conversation history."""
         conv_id = "test_conv_clear"
 
         # Add some history
-        service.conversation_history[conv_id] = [
+        service._conversation_contexts[conv_id] = [
             ChatMessage(content="Test", role="user"),
             ChatMessage(content="Response", role="assistant"),
         ]
 
         # Clear history
-        service.clear_conversation_history(conv_id)
+        service.clear_conversation_context(conv_id)
 
         # Verify history was cleared
-        assert conv_id not in service.conversation_history
+        assert conv_id not in service._conversation_contexts
 
     async def test_get_conversation_summary(self, service):
         """Test getting conversation summary."""
         conv_id = "test_conv_summary"
 
         # Add conversation history
-        service.conversation_history[conv_id] = [
+        service._conversation_contexts[conv_id] = [
             ChatMessage(content="Hello", role="user"),
             ChatMessage(content="Hi there!", role="assistant"),
             ChatMessage(content="How are you?", role="user"),
@@ -327,12 +413,12 @@ class TestAzureOpenAIServiceStreaming:
     def streaming_request(self):
         """Create a streaming chat request."""
         return ChatRequest(
-            message="Tell me about AI careers", 
-            user_id="user_123", 
+            message="Tell me about AI careers",
+            user_id="user_123",
             stream=True,
             conversation_id="test_conv",
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
         )
 
     async def test_generate_streaming_response_success(
@@ -384,8 +470,8 @@ class TestAzureOpenAIServiceStreaming:
         # Verify conversation history was updated
         conv_id = streaming_request.conversation_id
         if conv_id:
-            assert conv_id in service.conversation_history
-            history = service.conversation_history[conv_id]
+            assert conv_id in service._conversation_contexts
+            history = service._conversation_contexts[conv_id]
             assert len(history) >= 2  # User message + assistant response
             assert history[-1].role == "assistant"
 
@@ -403,11 +489,11 @@ class TestAzureOpenAIServiceEdgeCases:
         # This should be caught by Pydantic validation before reaching the service
         with pytest.raises(Exception):  # ValidationError from Pydantic
             ChatRequest(
-                message="", 
+                message="",
                 user_id="user_123",
                 conversation_id="test_conv",
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=1000,
             )
 
     async def test_very_long_conversation_history(self, service):
@@ -424,15 +510,15 @@ class TestAzureOpenAIServiceEdgeCases:
                 ]
             )
 
-        service.conversation_history[conv_id] = long_history
+        service._conversation_contexts[conv_id] = long_history
 
         # Make a request
         request = ChatRequest(
-            message="New message", 
-            user_id="user_123", 
+            message="New message",
+            user_id="user_123",
             conversation_id=conv_id,
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
         )
 
         mock_completion = ChatCompletion(
@@ -447,18 +533,26 @@ class TestAzureOpenAIServiceEdgeCases:
                     finish_reason="stop",
                 )
             ],
-            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+            usage=CompletionUsage(
+                prompt_tokens=10, completion_tokens=10, total_tokens=20
+            ),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
 
         # Should handle long history gracefully
-        response = await service.generate_response(request)
+        response = await service.generate_response(
+            message=request.message,
+            conversation_id=request.conversation_id,
+            user_id=request.user_id,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+        )
         assert response.message == "Response"
 
         # Verify history was trimmed
-        final_history = service.conversation_history[conv_id]
-        assert len(final_history) <= service.max_history_messages
+        final_history = service._conversation_contexts[conv_id]
+        assert len(final_history) <= service.settings.max_conversation_history
 
     async def test_concurrent_requests_same_conversation(self, service):
         """Test handling concurrent requests for the same conversation."""
@@ -478,7 +572,9 @@ class TestAzureOpenAIServiceEdgeCases:
                     finish_reason="stop",
                 )
             ],
-            usage=CompletionUsage(prompt_tokens=10, completion_tokens=10, total_tokens=20),
+            usage=CompletionUsage(
+                prompt_tokens=10, completion_tokens=10, total_tokens=20
+            ),
         )
 
         service.client.chat.completions.create = AsyncMock(return_value=mock_completion)
@@ -486,18 +582,27 @@ class TestAzureOpenAIServiceEdgeCases:
         # Create multiple concurrent requests
         requests = [
             ChatRequest(
-                message=f"Message {i}", 
-                user_id="user_123", 
+                message=f"Message {i}",
+                user_id="user_123",
                 conversation_id=conv_id,
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=1000,
             )
             for i in range(3)
         ]
 
         # Execute concurrently
         responses = await asyncio.gather(
-            *[service.generate_response(req) for req in requests]
+            *[
+                service.generate_response(
+                    message=req.message,
+                    conversation_id=req.conversation_id,
+                    user_id=req.user_id,
+                    temperature=req.temperature,
+                    max_tokens=req.max_tokens,
+                )
+                for req in requests
+            ]
         )
 
         # All should succeed
@@ -505,5 +610,5 @@ class TestAzureOpenAIServiceEdgeCases:
         assert all(r.message == "Concurrent response" for r in responses)
 
         # Conversation history should contain all messages
-        history = service.conversation_history[conv_id]
+        history = service._conversation_contexts[conv_id]
         assert len(history) >= 6  # 3 user messages + 3 assistant responses

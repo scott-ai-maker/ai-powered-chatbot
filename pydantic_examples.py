@@ -7,7 +7,7 @@ Netflix, Uber, and other major tech companies.
 """
 
 from typing import List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
@@ -64,12 +64,9 @@ def pydantic_model_example():
 
 class DatabaseSettings(BaseSettings):
     """Database configuration with automatic environment loading."""
-    
+
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     # These will automatically load from environment variables
@@ -98,12 +95,9 @@ class DatabaseSettings(BaseSettings):
 
 class AIServiceSettings(BaseSettings):
     """AI service configuration - similar to our chatbot config."""
-    
+
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     # Azure OpenAI settings

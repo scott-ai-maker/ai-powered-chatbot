@@ -9,7 +9,6 @@ and integration with services. They show professional API testing practices.
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch
-from datetime import datetime
 
 from src.main import app
 from src.models.chat_models import ChatResponse, HealthCheckResponse
@@ -26,7 +25,7 @@ class TestHealthEndpoint:
     async def test_health_check_success(self, client):
         """Test basic health check endpoint."""
         response = client.get("/api/v1/health")
-        
+
         assert response.status_code == 200
 
     def test_health_check_response_model(self, client):
@@ -312,7 +311,9 @@ class TestAPIErrorHandling:
     def test_unsupported_media_type(self, client):
         """Test handling of unsupported content type."""
         response = client.post(
-            "/api/v1/chat/chat", data="some data", headers={"Content-Type": "text/plain"}
+            "/api/v1/chat/chat",
+            data="some data",
+            headers={"Content-Type": "text/plain"},
         )
 
         assert response.status_code == 422
@@ -374,7 +375,9 @@ class TestAPICORS:
         request_data = {"message": "Test message", "user_id": "user_123"}
 
         response = client.post(
-            "/api/v1/chat/chat", json=request_data, headers={"Origin": "http://localhost:3000"}
+            "/api/v1/chat/chat",
+            json=request_data,
+            headers={"Origin": "http://localhost:3000"},
         )
 
         # Should include CORS headers in response

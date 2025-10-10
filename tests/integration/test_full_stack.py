@@ -262,7 +262,9 @@ class TestFullApplicationFlow:
         request_data = {"message": "CORS test message", "user_id": "cors_test_user"}
 
         response = client.post(
-            "/api/v1/chat/chat", json=request_data, headers={"Origin": "http://localhost:3000"}
+            "/api/v1/chat/chat",
+            json=request_data,
+            headers={"Origin": "http://localhost:3000"},
         )
 
         # Should have CORS headers

@@ -71,7 +71,11 @@ def sample_chat_response() -> ChatResponse:
         conversation_id="test-conv-123",
         ai_model="gpt-4",
         processing_time_ms=1500,
-        token_usage={"prompt_tokens": 50, "completion_tokens": 100, "total_tokens": 150},
+        token_usage={
+            "prompt_tokens": 50,
+            "completion_tokens": 100,
+            "total_tokens": 150,
+        },
         confidence_score=0.95,
         response_type="career_advice",
     )
@@ -88,7 +92,7 @@ def mock_chat_completion():
     mock_response.usage.completion_tokens = 100
     mock_response.usage.total_tokens = 150
     mock_response.model = "gpt-4"
-    
+
     return mock_response
 
 

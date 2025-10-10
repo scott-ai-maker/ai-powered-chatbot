@@ -162,13 +162,13 @@ class TestChatResponse:
         response = ChatResponse(
             message="Here's my advice...",
             conversation_id="conv_123",
-            model_used="gpt-4",
+            ai_model="gpt-4",
             processing_time_ms=1500,
         )
 
         assert response.message == "Here's my advice..."
         assert response.conversation_id == "conv_123"
-        assert response.model_used == "gpt-4"
+        assert response.ai_model == "gpt-4"
         assert response.processing_time_ms == 1500
         assert response.id is not None
         assert response.response_type == "career_advice"  # default value
@@ -184,7 +184,7 @@ class TestChatResponse:
         response = ChatResponse(
             message="Test response",
             conversation_id="conv_123",
-            model_used="gpt-4",
+            ai_model="gpt-4",
             processing_time_ms=2000,
             token_usage=token_usage,
             confidence_score=0.95,
@@ -202,7 +202,7 @@ class TestChatResponse:
             response = ChatResponse(
                 message="Test",
                 conversation_id="conv_123",
-                model_used="gpt-4",
+                ai_model="gpt-4",
                 processing_time_ms=1000,
                 confidence_score=score,
             )
@@ -214,7 +214,7 @@ class TestChatResponse:
                 ChatResponse(
                     message="Test",
                     conversation_id="conv_123",
-                    model_used="gpt-4",
+                    ai_model="gpt-4",
                     processing_time_ms=1000,
                     confidence_score=invalid_score,
                 )
@@ -227,7 +227,7 @@ class TestChatResponse:
             response = ChatResponse(
                 message="Test",
                 conversation_id="conv_123",
-                model_used="gpt-4",
+                ai_model="gpt-4",
                 processing_time_ms=1000,
                 response_type=response_type,
             )
@@ -238,7 +238,7 @@ class TestChatResponse:
             ChatResponse(
                 message="Test",
                 conversation_id="conv_123",
-                model_used="gpt-4",
+                ai_model="gpt-4",
                 processing_time_ms=1000,
                 response_type="invalid_type",
             )
@@ -352,7 +352,7 @@ class TestModelIntegration:
         response = ChatResponse(
             message="To learn AI, start with...",
             conversation_id=request.conversation_id,
-            model_used="gpt-4",
+            ai_model="gpt-4",
             processing_time_ms=1200,
         )
 
