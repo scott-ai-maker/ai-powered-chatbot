@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Send, FileText, X, Download, Trash2, Settings } from 'lucide-react';
+import { Send, FileText, X, Download, Trash2 } from 'lucide-react';
 import './index.css';
 
 // Configure axios base URL based on environment
