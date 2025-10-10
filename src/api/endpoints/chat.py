@@ -105,7 +105,7 @@ async def chat_completion(
                 user_id=request.user_id,
                 conversation_id=conversation_id,
                 temperature=request.temperature,
-                max_tokens=request.max_tokens
+                max_tokens=request.max_tokens,
             )
             rag_response = await rag_service.generate_rag_response(rag_request)
 
@@ -197,7 +197,7 @@ async def rag_chat_completion(
             user_id=request.user_id,
             conversation_id=conversation_id,
             temperature=request.temperature,
-            max_tokens=request.max_tokens
+            max_tokens=request.max_tokens,
         )
         response = await rag_service.generate_rag_response(rag_request)
 
