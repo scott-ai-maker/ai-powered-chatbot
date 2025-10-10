@@ -139,8 +139,12 @@ async def detailed_health_check(
             status=cast(Literal["healthy", "degraded", "unhealthy"], overall_status),
             timestamp=datetime.utcnow(),
             version=settings.app_version,
-            azure_openai_status=cast(Literal["connected", "disconnected", "error"], azure_openai_status),
-            database_status=cast(Literal["connected", "disconnected", "error"], database_status),
+            azure_openai_status=cast(
+                Literal["connected", "disconnected", "error"], azure_openai_status
+            ),
+            database_status=cast(
+                Literal["connected", "disconnected", "error"], database_status
+            ),
             response_time_ms=monitoring_metrics.get("uptime_seconds", 0) * 1000,
             active_conversations=monitoring_metrics.get("metrics_summary", {})
             .get("sample_metrics", {})

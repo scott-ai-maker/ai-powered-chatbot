@@ -269,7 +269,10 @@ Guidelines:
             generation_time = int((time.time() - generation_start) * 1000)
 
             # Extract response
-            response_message = completion.choices[0].message.content or "Sorry, I couldn't generate a response."
+            response_message = (
+                completion.choices[0].message.content
+                or "Sorry, I couldn't generate a response."
+            )
 
             # Calculate confidence score based on retrieval quality
             confidence_score = None

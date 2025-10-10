@@ -1,62 +1,70 @@
 """
-Monitoring middleware for tracking request performance and errors.
-
-This middleware captures detailed metrics about every HTTP request,
-including timing, status codes, errors, and business-specific events.
+Monitoring middleware for FastAPI applications.
+Handles request/response logging, performance metrics, and error tracking.
+Optional FastAPI integration with fallback for non-FastAPI environments.
 """
-# mypy: ignore-errors
 
 import time
-import traceback
-import uuid
-from typing import Callable, Optional, Dict, Any, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI, Request, Response
+    from fastapi import Request, Response
     from fastapi.middleware.base import BaseHTTPMiddleware
 else:
-    try:
-        from fastapi import FastAPI, Request, Response
-        from fastapi.middleware.base import BaseHTTPMiddleware
-        FASTAPI_AVAILABLE = True
-    except ImportError:
-        FASTAPI_AVAILABLE = False
-        # Provide minimal stubs
-        FastAPI = object
-        Request = object
-        Response = object
-        BaseHTTPMiddleware = object
+    # Fallback types when FastAPI is not available
+    Request = None
+    Response = None
+    BaseHTTPMiddleware = None
 
-import time
-from typing import Callable, Optional
-
+# Import FastAPI components conditionally
 try:
     from fastapi import FastAPI, Request, Response
     from fastapi.middleware.base import BaseHTTPMiddleware
+    import structlog
 
     FASTAPI_AVAILABLE = True
 except ImportError:
+    # Fallback implementations when FastAPI is not available
     FASTAPI_AVAILABLE = False
-    # Provide stubs for type hints when FastAPI is not available
-    class FastAPI:  # type: ignore
-        pass
-    
-    class Request:  # type: ignore
-        pass
-        
-    class Response:  # type: ignore
-        pass
-        
-    class BaseHTTPMiddleware:  # type: ignore
+
+    class Request:
+        """Fallback Request class."""
+
         pass
 
-import structlog
+    class Response:
+        """Fallback Response class."""
 
+        pass
+
+    class BaseHTTPMiddleware:
+        """Fallback BaseHTTPMiddleware class."""
+
+        pass
+
+    class FastAPI:
+        """Fallback FastAPI class."""
+
+        pass
+
+    # Mock structlog if not available
+    class MockLogger:
+        def info(self, *args, **kwargs):
+            pass
+
+        def error(self, *args, **kwargs):
+            pass
+
+        def get_logger(self):
+            return self
+
+    structlog = MockLogger()
+
+from src.services.logging_service import get_logger
 from src.services.monitoring_service import get_monitoring_service
 from src.config.settings import get_settings_dependency
 
-
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 
 
 class MonitoringMiddleware(BaseHTTPMiddleware):
