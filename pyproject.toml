@@ -1,6 +1,6 @@
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q --strict-markers --html=reports/test-report.html --self-contained-html"
+addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
