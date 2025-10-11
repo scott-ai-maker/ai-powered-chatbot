@@ -281,8 +281,15 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     
+    - name: Skip container build (Azure Container Registry not configured)
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY == '' }}
+      run: |
+        echo "::notice::Skipping container build - AZURE_CONTAINER_REGISTRY variable not set"
+        echo "To enable container builds, set the AZURE_CONTAINER_REGISTRY repository variable"
+    
     - name: Extract metadata
       id: meta
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       uses: docker/metadata-action@v5
       with:
         images: ${{ vars.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}
@@ -294,6 +301,7 @@ jobs:
     
     - name: Build container image
       id: build
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -309,6 +317,7 @@ jobs:
           BUILD_BRANCH=${{ github.ref_name }}
     
     - name: Upload container image artifact
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       uses: actions/upload-artifact@v4
       with:
         name: container-image
@@ -316,6 +325,7 @@ jobs:
         retention-days: 1
     
     - name: Install Trivy
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       run: |
         sudo apt-get update
         sudo apt-get install wget apt-transport-https gnupg lsb-release
@@ -325,6 +335,7 @@ jobs:
         sudo apt-get install trivy
     
     - name: Run Trivy vulnerability scanner
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       run: |
         trivy image \
           --format sarif \
@@ -333,12 +344,13 @@ jobs:
           --input /tmp/container-image.tar
     
     - name: Upload Trivy scan results
+      if: ${{ always() && vars.AZURE_CONTAINER_REGISTRY != '' }}
       uses: github/codeql-action/upload-sarif@v2
-      if: always()
       with:
         sarif_file: trivy-results.sarif
     
     - name: Run Trivy vulnerability scanner (table format)
+      if: ${{ vars.AZURE_CONTAINER_REGISTRY != '' }}
       run: |
         trivy image \
           --format table \
