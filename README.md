@@ -684,3 +684,4 @@ Built by Scott as part of an AI Engineering portfolio. This project demonstrates
 
 **Contact**: [Your LinkedIn/Email]
 **Portfolio**: [Your Portfolio URL]
+# Container Registry Configured: Sat Oct 11 14:27:14 EDT 2025
