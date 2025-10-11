@@ -88,7 +88,7 @@ class TestChatEndpoint:
             },
         )
 
-    @patch("src.main.ai_service")
+    @patch("src.api.endpoints.chat._ai_service")
     async def test_chat_endpoint_success(
         self, mock_service, client, valid_chat_request, mock_chat_response
     ):
@@ -185,7 +185,7 @@ class TestChatEndpoint:
 
         assert response.status_code == 422
 
-    @patch("src.main.ai_service")
+    @patch("src.api.endpoints.chat._ai_service")
     async def test_chat_endpoint_service_error(
         self, mock_service, client, valid_chat_request
     ):
@@ -220,7 +220,7 @@ class TestChatEndpoint:
         # Should pass validation (422 would indicate validation failure)
         assert response.status_code != 422
 
-    @patch("src.main.ai_service")
+    @patch("src.api.endpoints.chat._ai_service")
     async def test_chat_endpoint_with_conversation_history(
         self, mock_service, client, mock_chat_response
     ):
@@ -259,7 +259,7 @@ class TestChatStreamingEndpoint:
             "stream": True,
         }
 
-    @patch("src.main.ai_service")
+    @patch("src.api.endpoints.chat._ai_service")
     async def test_streaming_chat_endpoint(
         self, mock_service, client, streaming_request, mock_streaming_response
     ):

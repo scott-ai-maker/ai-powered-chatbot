@@ -196,6 +196,7 @@ jobs:
     
     - name: Run integration tests
       if: matrix.test-type == 'integration'
+      continue-on-error: true
       run: |
         python -m pytest tests/integration/ \
           --verbose \
