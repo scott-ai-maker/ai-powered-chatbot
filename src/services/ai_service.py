@@ -358,9 +358,10 @@ Provide practical, actionable advice that's specific to the user's background an
             )
         )
 
-        # Keep context manageable (max 20 messages = 10 exchanges)
-        if len(context) > 20:
-            self._conversation_contexts[conversation_id] = context[-20:]
+        # Keep context manageable (use configured max history)
+        max_history = self.settings.max_conversation_history
+        if len(context) > max_history:
+            self._conversation_contexts[conversation_id] = context[-max_history:]
 
     def _classify_response(
         self, response_content: str

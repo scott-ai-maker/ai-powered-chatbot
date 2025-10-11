@@ -387,27 +387,28 @@ class TestAzureOpenAIService:
 
         summary = service.get_conversation_summary(conv_id)
 
-        assert summary.conversation_id == conv_id
-        assert summary.message_count == 4
-        assert summary.last_message_time is not None
-        assert "Hello" in summary.preview
+        assert summary["conversation_id"] == conv_id
+        assert summary["total_messages"] == 4
+        assert summary["last_message_time"] is not None
+        assert summary["user_messages"] == 2
+        assert summary["assistant_messages"] == 2
 
     async def test_get_conversation_summary_nonexistent(self, service):
         """Test getting summary for non-existent conversation."""
         summary = service.get_conversation_summary("nonexistent")
 
-        assert summary.conversation_id == "nonexistent"
-        assert summary.message_count == 0
-        assert summary.preview == "No messages yet"
+        assert summary is None
 
 
 class TestAzureOpenAIServiceStreaming:
     """Test streaming functionality of AzureOpenAIService."""
 
     @pytest.fixture
-    def service(self, test_settings):
+    def service(self, test_settings, mock_openai_client):
         """Create service for streaming tests."""
-        return AzureOpenAIService(test_settings)
+        service = AzureOpenAIService(test_settings)
+        service.client = mock_openai_client  # Set mock client directly for testing
+        return service
 
     @pytest.fixture
     def streaming_request(self):
@@ -430,7 +431,13 @@ class TestAzureOpenAIServiceStreaming:
         )
 
         chunks = []
-        async for chunk in service.generate_streaming_response(streaming_request):
+        async for chunk in service.generate_streaming_response(
+            message=streaming_request.message,
+            conversation_id=streaming_request.conversation_id,
+            user_id=streaming_request.user_id,
+            temperature=streaming_request.temperature,
+            max_tokens=streaming_request.max_tokens
+        ):
             chunks.append(chunk)
 
         # Verify chunks
@@ -450,7 +457,13 @@ class TestAzureOpenAIServiceStreaming:
         )
 
         with pytest.raises(APIError):
-            async for chunk in service.generate_streaming_response(streaming_request):
+            async for chunk in service.generate_streaming_response(
+                message=streaming_request.message,
+                conversation_id=streaming_request.conversation_id,
+                user_id=streaming_request.user_id,
+                temperature=streaming_request.temperature,
+                max_tokens=streaming_request.max_tokens
+            ):
                 pass  # Should raise before yielding any chunks
 
     async def test_streaming_conversation_history_update(
@@ -463,7 +476,13 @@ class TestAzureOpenAIServiceStreaming:
 
         # Process streaming response
         full_content = ""
-        async for chunk in service.generate_streaming_response(streaming_request):
+        async for chunk in service.generate_streaming_response(
+            message=streaming_request.message,
+            conversation_id=streaming_request.conversation_id,
+            user_id=streaming_request.user_id,
+            temperature=streaming_request.temperature,
+            max_tokens=streaming_request.max_tokens
+        ):
             if not chunk.is_final:
                 full_content += chunk.content
 
@@ -480,9 +499,11 @@ class TestAzureOpenAIServiceEdgeCases:
     """Test edge cases and error conditions."""
 
     @pytest.fixture
-    def service(self, test_settings):
+    def service(self, test_settings, mock_openai_client):
         """Create service for edge case tests."""
-        return AzureOpenAIService(test_settings)
+        service = AzureOpenAIService(test_settings)
+        service.client = mock_openai_client  # Set mock client directly for testing
+        return service
 
     async def test_empty_message_handling(self, service):
         """Test handling of requests with empty messages."""
