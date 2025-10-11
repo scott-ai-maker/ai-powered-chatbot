@@ -275,19 +275,20 @@ def simulate_network_error():
 def mock_streaming_response():
     """Mock streaming response from OpenAI."""
 
+    class MockDelta:
+        def __init__(self, data):
+            self.content = data.get("content")
+            
+    class MockChoice:
+        def __init__(self, choice_data):
+            self.delta = MockDelta(choice_data.get("delta", {}))
+            self.finish_reason = choice_data.get("finish_reason")
+    
     class MockStreamChunk:
         def __init__(self, chunk_data):
             self.id = chunk_data.get("id", "")
             self.choices = [
-                type(
-                    "MockChoice",
-                    (),
-                    {
-                        "delta": type("MockDelta", (), choice.get("delta", {}))(),
-                        "finish_reason": choice.get("finish_reason"),
-                    },
-                )()
-                for choice in chunk_data.get("choices", [])
+                MockChoice(choice) for choice in chunk_data.get("choices", [])
             ]
 
     async def stream_generator():

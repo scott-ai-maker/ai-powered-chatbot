@@ -456,15 +456,21 @@ class TestAzureOpenAIServiceStreaming:
             side_effect=APIError("Streaming error", request=mock_request, body=None)
         )
 
-        with pytest.raises(APIError):
-            async for chunk in service.generate_streaming_response(
-                message=streaming_request.message,
-                conversation_id=streaming_request.conversation_id,
-                user_id=streaming_request.user_id,
-                temperature=streaming_request.temperature,
-                max_tokens=streaming_request.max_tokens
-            ):
-                pass  # Should raise before yielding any chunks
+        chunks = []
+        async for chunk in service.generate_streaming_response(
+            message=streaming_request.message,
+            conversation_id=streaming_request.conversation_id,
+            user_id=streaming_request.user_id,
+            temperature=streaming_request.temperature,
+            max_tokens=streaming_request.max_tokens
+        ):
+            chunks.append(chunk)
+        
+        # Should receive an error chunk
+        assert len(chunks) == 1
+        error_chunk = chunks[0]
+        assert error_chunk.is_final is True
+        assert "Error:" in error_chunk.content
 
     async def test_streaming_conversation_history_update(
         self, service, streaming_request, mock_streaming_response
