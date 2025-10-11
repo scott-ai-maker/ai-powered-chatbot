@@ -49,6 +49,11 @@ env:
   NODE_VERSION: '18'
   # REGISTRY_LOGIN_SERVER: Set this in repository variables as AZURE_CONTAINER_REGISTRY
   IMAGE_NAME: ai-career-mentor
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
   
 jobs:
   # ==========================================
@@ -345,7 +350,7 @@ jobs:
     
     - name: Upload Trivy scan results
       if: ${{ always() && vars.AZURE_CONTAINER_REGISTRY != '' }}
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: trivy-results.sarif
     
