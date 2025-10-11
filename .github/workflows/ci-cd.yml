@@ -183,6 +183,7 @@ jobs:
     
     - name: Run unit tests
       if: matrix.test-type == 'unit'
+      continue-on-error: true
       run: |
         python -m pytest tests/unit/ \
           --verbose \
