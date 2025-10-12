@@ -38,17 +38,18 @@ param openAiModelName string = 'gpt-4'
 @description('OpenAI embedding model deployment name')
 param openAiEmbeddingModelName string = 'text-embedding-ada-002'
 
-// Variables
+// Naming variables
 var resourcePrefix = '${appName}-${environment}'
+var shortPrefix = replace(replace(resourcePrefix, '-', ''), '_', '') // Remove hyphens and underscores for strict naming
 var containerAppName = '${resourcePrefix}-app'
 var containerEnvName = '${resourcePrefix}-env'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-insights'
-var keyVaultName = '${resourcePrefix}-kv-${uniqueString(resourceGroup().id)}'
+var keyVaultName = '${shortPrefix}kv${uniqueString(resourceGroup().id)}' // Max 24 chars, alphanumeric only
 var cosmosDbName = '${resourcePrefix}-cosmos'
 var openAiName = '${resourcePrefix}-openai'
 var searchServiceName = '${resourcePrefix}-search'
-var containerRegistryName = '${resourcePrefix}acr${uniqueString(resourceGroup().id)}'
+var containerRegistryName = '${shortPrefix}acr${uniqueString(resourceGroup().id)}' // Alphanumeric only, 5-50 chars
 
 // Common tags applied to all resources
 var commonTags = {
