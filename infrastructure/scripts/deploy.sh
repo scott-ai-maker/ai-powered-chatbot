@@ -211,17 +211,21 @@ deploy_infrastructure() {
 
     # Validate Bicep template using what-if (more reliable than validate)
     log_info "Validating Bicep template..."
-    VALIDATION_RESULT=$(az deployment group what-if \
+    if ! az deployment group what-if \
         --resource-group "$RESOURCE_GROUP_NAME" \
         --template-file "$BICEP_DIR/main.bicep" \
         --parameters "@$BICEP_DIR/parameters.$ENVIRONMENT.json" \
         --parameters adminEmail="$ADMIN_EMAIL" location="$LOCATION" \
         --result-format ResourceIdOnly \
-        --output none 2>&1)
-    
-    if [[ $? -ne 0 ]]; then
-        log_error "Template validation failed"
-        echo "$VALIDATION_RESULT"
+        --output table > /dev/null 2>&1; then
+        
+        log_error "Template validation failed. Running validation again to show errors:"
+        az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP_NAME" \
+            --template-file "$BICEP_DIR/main.bicep" \
+            --parameters "@$BICEP_DIR/parameters.$ENVIRONMENT.json" \
+            --parameters adminEmail="$ADMIN_EMAIL" location="$LOCATION" \
+            --result-format ResourceIdOnly
         exit 1
     fi
     log_success "Template validation passed"
