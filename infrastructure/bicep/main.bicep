@@ -230,8 +230,8 @@ resource openAiGptDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4'
-      version: '0613'
+      name: openAiModelName
+      version: openAiModelName == 'gpt-4o' ? '2024-08-06' : '2024-02-01'
     }
     raiPolicyName: 'Microsoft.Default'
   }

@@ -209,14 +209,15 @@ deploy_infrastructure() {
         log_info "Resource group already exists: $RESOURCE_GROUP_NAME"
     fi
 
-    # Validate Bicep template
+    # Validate Bicep template using what-if (more reliable than validate)
     log_info "Validating Bicep template..."
-    VALIDATION_RESULT=$(az deployment group validate \
+    VALIDATION_RESULT=$(az deployment group what-if \
         --resource-group "$RESOURCE_GROUP_NAME" \
         --template-file "$BICEP_DIR/main.bicep" \
         --parameters "@$BICEP_DIR/parameters.$ENVIRONMENT.json" \
         --parameters adminEmail="$ADMIN_EMAIL" location="$LOCATION" \
-        --output json 2>&1)
+        --result-format ResourceIdOnly \
+        --output none 2>&1)
     
     if [[ $? -ne 0 ]]; then
         log_error "Template validation failed"
