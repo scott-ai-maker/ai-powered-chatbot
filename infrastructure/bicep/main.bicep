@@ -361,7 +361,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       revisionSuffix: imageTag
       containers: [
         {
-          image: '${containerRegistry.properties.loginServer}/${appName}:${imageTag}'
+          image: imageTag == 'latest' ? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest' : '${containerRegistry.properties.loginServer}/${appName}:${imageTag}'
           name: containerAppName
           resources: {
             cpu: json(environment == 'prod' ? '1.0' : '0.5')
