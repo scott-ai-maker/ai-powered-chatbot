@@ -440,8 +440,7 @@ jobs:
         ./infrastructure/scripts/deploy.sh \
           -e dev \
           -s ${{ vars.AZURE_SUBSCRIPTION_ID }} \
-          -m ${{ vars.MAINTAINER_EMAIL }} \
-          --auto-approve
+          -m ${{ vars.MAINTAINER_EMAIL }}
     
     - name: Update Container App
       run: |
@@ -579,8 +578,7 @@ jobs:
         ./infrastructure/scripts/deploy.sh \
           -e prod \
           -s ${{ vars.AZURE_SUBSCRIPTION_ID }} \
-          -m ${{ vars.MAINTAINER_EMAIL }} \
-          --auto-approve
+          -m ${{ vars.MAINTAINER_EMAIL }}
     
     - name: Update Container App (production)
       run: |
