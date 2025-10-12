@@ -40,16 +40,15 @@ param openAiEmbeddingModelName string = 'text-embedding-ada-002'
 
 // Naming variables
 var resourcePrefix = '${appName}-${environment}'
-var shortPrefix = replace(replace(resourcePrefix, '-', ''), '_', '') // Remove hyphens and underscores for strict naming
 var containerAppName = '${resourcePrefix}-app'
 var containerEnvName = '${resourcePrefix}-env'
 var logAnalyticsName = '${resourcePrefix}-logs'
 var appInsightsName = '${resourcePrefix}-insights'
-var keyVaultName = '${shortPrefix}kv${uniqueString(resourceGroup().id)}' // Max 24 chars, alphanumeric only
+var keyVaultName = 'acm${environment}kv${uniqueString(resourceGroup().id)}' // ai-career-mentor -> acm, max 24 chars
 var cosmosDbName = '${resourcePrefix}-cosmos'
 var openAiName = '${resourcePrefix}-openai'
 var searchServiceName = '${resourcePrefix}-search'
-var containerRegistryName = '${shortPrefix}acr${uniqueString(resourceGroup().id)}' // Alphanumeric only, 5-50 chars
+var containerRegistryName = 'acm${environment}acr${uniqueString(resourceGroup().id)}' // Alphanumeric only, 5-50 chars
 
 // Common tags applied to all resources
 var commonTags = {

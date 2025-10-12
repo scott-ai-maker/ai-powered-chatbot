@@ -240,15 +240,14 @@ deploy_infrastructure() {
     log_info "Deploying infrastructure..."
     deployment_name="ai-career-mentor-$(date +%Y%m%d-%H%M%S)"
     
-    DEPLOYMENT_RESULT=$(az deployment group create \
+    # Use direct output instead of capturing to see real-time progress and errors
+    if az deployment group create \
         --resource-group "$RESOURCE_GROUP_NAME" \
         --name "$deployment_name" \
         --template-file "$BICEP_DIR/main.bicep" \
         --parameters "@$BICEP_DIR/parameters.$ENVIRONMENT.json" \
         --parameters adminEmail="$ADMIN_EMAIL" location="$LOCATION" \
-        --output json 2>&1)
-    
-    if [[ $? -eq 0 ]]; then
+        --output table; then
         
         log_success "Infrastructure deployment completed successfully!"
         
@@ -279,7 +278,8 @@ deploy_infrastructure() {
         
     else
         log_error "Infrastructure deployment failed"
-        echo "$DEPLOYMENT_RESULT"
+        log_info "Checking recent deployment status for details..."
+        az deployment group show --name "$deployment_name" --resource-group "$RESOURCE_GROUP_NAME" --query "properties.error" --output json 2>/dev/null || true
         exit 1
     fi
 }
