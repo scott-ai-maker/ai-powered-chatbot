@@ -211,13 +211,16 @@ deploy_infrastructure() {
 
     # Validate Bicep template
     log_info "Validating Bicep template..."
-    if ! az deployment group validate \
+    VALIDATION_RESULT=$(az deployment group validate \
         --resource-group "$RESOURCE_GROUP_NAME" \
         --template-file "$BICEP_DIR/main.bicep" \
         --parameters "@$BICEP_DIR/parameters.$ENVIRONMENT.json" \
         --parameters adminEmail="$ADMIN_EMAIL" location="$LOCATION" \
-        --output table; then
+        --output json 2>&1)
+    
+    if [[ $? -ne 0 ]]; then
         log_error "Template validation failed"
+        echo "$VALIDATION_RESULT"
         exit 1
     fi
     log_success "Template validation passed"
@@ -232,13 +235,15 @@ deploy_infrastructure() {
     log_info "Deploying infrastructure..."
     deployment_name="ai-career-mentor-$(date +%Y%m%d-%H%M%S)"
     
-    if az deployment group create \
+    DEPLOYMENT_RESULT=$(az deployment group create \
         --resource-group "$RESOURCE_GROUP_NAME" \
         --name "$deployment_name" \
         --template-file "$BICEP_DIR/main.bicep" \
         --parameters "@$BICEP_DIR/parameters.$ENVIRONMENT.json" \
         --parameters adminEmail="$ADMIN_EMAIL" location="$LOCATION" \
-        --output table; then
+        --output json 2>&1)
+    
+    if [[ $? -eq 0 ]]; then
         
         log_success "Infrastructure deployment completed successfully!"
         
@@ -269,6 +274,7 @@ deploy_infrastructure() {
         
     else
         log_error "Infrastructure deployment failed"
+        echo "$DEPLOYMENT_RESULT"
         exit 1
     fi
 }
