@@ -242,3 +242,9 @@ checkpoints/
 model_cache/
 embeddings_cache/
 vector_store/
+
+# Bicep build artifacts
+*.json
+!**/parameters.*.json
+!package*.json
+!tsconfig*.json
