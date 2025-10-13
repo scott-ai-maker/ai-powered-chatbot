@@ -318,7 +318,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: 8000
+        targetPort: imageTag == 'latest' ? 80 : 8000
         transport: 'http'
         allowInsecure: false
         traffic: [
@@ -437,7 +437,30 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: environment == 'prod' ? 'INFO' : 'DEBUG'
             }
           ]
-          probes: [
+          probes: imageTag == 'latest' ? [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/'
+                port: 80
+              }
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              timeoutSeconds: 10
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/'
+                port: 80
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            }
+          ] : [
             {
               type: 'Liveness'
               httpGet: {
