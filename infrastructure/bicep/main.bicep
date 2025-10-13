@@ -29,6 +29,10 @@ param location string = resourceGroup().location
 @description('Container image tag to deploy')
 param imageTag string = 'latest'
 
+@description('Deployment mode: infrastructure-only or full')
+@allowed(['infrastructure-only', 'full'])
+param deploymentMode string = 'full'
+
 @description('Administrator email for notifications')
 param adminEmail string
 
@@ -305,7 +309,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
 }
 
 // Container App
-resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
+resource containerApp 'Microsoft.App/containerApps@2024-03-01' = if (deploymentMode == 'full') {
   name: containerAppName
   location: location
   tags: commonTags
@@ -318,7 +322,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true
-        targetPort: imageTag == 'latest' ? 80 : 8000
+        targetPort: 8000
         transport: 'http'
         allowInsecure: false
         traffic: [
@@ -437,30 +441,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: environment == 'prod' ? 'INFO' : 'DEBUG'
             }
           ]
-          probes: imageTag == 'latest' ? [
-            {
-              type: 'Liveness'
-              httpGet: {
-                path: '/'
-                port: 80
-              }
-              initialDelaySeconds: 30
-              periodSeconds: 30
-              timeoutSeconds: 10
-              failureThreshold: 3
-            }
-            {
-              type: 'Readiness'
-              httpGet: {
-                path: '/'
-                port: 80
-              }
-              initialDelaySeconds: 10
-              periodSeconds: 10
-              timeoutSeconds: 5
-              failureThreshold: 3
-            }
-          ] : [
+          probes: [
             {
               type: 'Liveness'
               httpGet: {
@@ -517,23 +498,23 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
 // Role assignments for Container App managed identity
 
 // Key Vault Secrets User role for Container App
-resource containerAppKeyVaultSecretUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource containerAppKeyVaultSecretUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploymentMode == 'full') {
   scope: keyVault
-  name: guid(keyVault.id, containerApp.id, '4633458b-17de-408a-b874-0445c86b69e6')
+  name: guid(keyVault.id, containerApp!.id, '4633458b-17de-408a-b874-0445c86b69e6')
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6') // Key Vault Secrets User
-    principalId: containerApp.identity.principalId
+    principalId: containerApp!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
 // ACR Pull role for Container App
-resource containerAppAcrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource containerAppAcrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploymentMode == 'full') {
   scope: containerRegistry
-  name: guid(containerRegistry.id, containerApp.id, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  name: guid(containerRegistry.id, containerApp!.id, '7f951dda-4ed3-4680-a7ca-43fe172d538d')
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
-    principalId: containerApp.identity.principalId
+    principalId: containerApp!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -576,7 +557,7 @@ resource cosmosKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
 }
 
 // Outputs
-output containerAppUrl string = containerApp.properties.configuration.ingress.fqdn
+output containerAppUrl string = deploymentMode == 'full' ? containerApp!.properties.configuration.ingress.fqdn : ''
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
 output keyVaultName string = keyVault.name
 output applicationInsightsConnectionString string = appInsights.properties.ConnectionString
@@ -584,5 +565,5 @@ output openAiEndpoint string = openAiService.properties.endpoint
 output searchServiceEndpoint string = 'https://${searchService.name}.search.windows.net'
 output cosmosDbEndpoint string = cosmosDbAccount.properties.documentEndpoint
 output resourceGroupName string = resourceGroup().name
-output containerAppName string = containerApp.name
+output containerAppName string = deploymentMode == 'full' ? containerApp!.name : containerAppName
 output environment string = environment

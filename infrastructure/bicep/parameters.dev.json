@@ -14,6 +14,9 @@
     "imageTag": {
       "value": "latest"
     },
+    "deploymentMode": {
+      "value": "infrastructure-only"
+    },
     "adminEmail": {
       "value": "admin@example.com"
     },

@@ -434,7 +434,7 @@ jobs:
           echo "Also pushed as: $LATEST_TAG"
         fi
     
-    - name: Deploy infrastructure
+    - name: Deploy core infrastructure
       run: |
         chmod +x ./infrastructure/scripts/deploy.sh
         ./infrastructure/scripts/deploy.sh \
@@ -442,15 +442,45 @@ jobs:
           -s ${{ vars.AZURE_SUBSCRIPTION_ID }} \
           -m ${{ vars.MAINTAINER_EMAIL }}
     
-    - name: Update Container App
+    - name: Get infrastructure outputs
+      id: infra-outputs
+      run: |
+        # Get the outputs from the infrastructure deployment
+        OUTPUTS=$(az deployment group show \
+          --resource-group rg-ai-career-mentor-dev \
+          --name "$(az deployment group list --resource-group rg-ai-career-mentor-dev --query '[0].name' --output tsv)" \
+          --query properties.outputs --output json)
+        
+        echo "container-registry=$(echo "$OUTPUTS" | jq -r '.containerRegistryLoginServer.value')" >> $GITHUB_OUTPUT
+        echo "key-vault-name=$(echo "$OUTPUTS" | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
+        echo "container-env-name=$(echo "$OUTPUTS" | jq -r '.containerAppsEnvironmentName.value')" >> $GITHUB_OUTPUT
+    
+    - name: Deploy Container App
       run: |
         IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
         
-        az containerapp update \
-          --name ai-career-mentor-dev \
+        # First try to delete any stuck Container App
+        az containerapp delete \
+          --name ai-career-mentor-dev-app \
           --resource-group rg-ai-career-mentor-dev \
-          --image $IMAGE_TAG \
-          --revision-suffix $(date +%s)
+          --yes || true
+        
+        # Wait a moment for cleanup
+        sleep 30
+        
+        # Deploy the Container App
+        az deployment group create \
+          --resource-group rg-ai-career-mentor-dev \
+          --name "containerapp-$(date +%Y%m%d-%H%M%S)" \
+          --template-file ./infrastructure/bicep/containerapp.bicep \
+          --parameters appName=ai-career-mentor \
+          --parameters environment=dev \
+          --parameters location=eastus2 \
+          --parameters imageTag="$IMAGE_TAG" \
+          --parameters containerRegistryLoginServer="${{ steps.infra-outputs.outputs.container-registry }}" \
+          --parameters keyVaultName="${{ steps.infra-outputs.outputs.key-vault-name }}" \
+          --parameters containerAppsEnvironmentName="${{ steps.infra-outputs.outputs.container-env-name }}" \
+          --output table
     
     - name: Run health checks
       run: |
@@ -572,7 +602,7 @@ jobs:
           echo "Also pushed as: $LATEST_TAG"
         fi
     
-    - name: Deploy infrastructure (production)
+    - name: Deploy core infrastructure (production)
       run: |
         chmod +x ./infrastructure/scripts/deploy.sh
         ./infrastructure/scripts/deploy.sh \
@@ -580,15 +610,45 @@ jobs:
           -s ${{ vars.AZURE_SUBSCRIPTION_ID }} \
           -m ${{ vars.MAINTAINER_EMAIL }}
     
-    - name: Update Container App (production)
+    - name: Get production infrastructure outputs
+      id: prod-infra-outputs
+      run: |
+        # Get the outputs from the infrastructure deployment
+        OUTPUTS=$(az deployment group show \
+          --resource-group rg-ai-career-mentor-prod \
+          --name "$(az deployment group list --resource-group rg-ai-career-mentor-prod --query '[0].name' --output tsv)" \
+          --query properties.outputs --output json)
+        
+        echo "container-registry=$(echo "$OUTPUTS" | jq -r '.containerRegistryLoginServer.value')" >> $GITHUB_OUTPUT
+        echo "key-vault-name=$(echo "$OUTPUTS" | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
+        echo "container-env-name=$(echo "$OUTPUTS" | jq -r '.containerAppsEnvironmentName.value')" >> $GITHUB_OUTPUT
+    
+    - name: Deploy Container App (production)
       run: |
         IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
         
-        az containerapp update \
-          --name ai-career-mentor-prod \
+        # First try to delete any stuck Container App
+        az containerapp delete \
+          --name ai-career-mentor-prod-app \
           --resource-group rg-ai-career-mentor-prod \
-          --image $IMAGE_TAG \
-          --revision-suffix $(date +%s)
+          --yes || true
+        
+        # Wait a moment for cleanup
+        sleep 30
+        
+        # Deploy the Container App
+        az deployment group create \
+          --resource-group rg-ai-career-mentor-prod \
+          --name "containerapp-$(date +%Y%m%d-%H%M%S)" \
+          --template-file ./infrastructure/bicep/containerapp.bicep \
+          --parameters appName=ai-career-mentor \
+          --parameters environment=prod \
+          --parameters location=eastus2 \
+          --parameters imageTag="$IMAGE_TAG" \
+          --parameters containerRegistryLoginServer="${{ steps.prod-infra-outputs.outputs.container-registry }}" \
+          --parameters keyVaultName="${{ steps.prod-infra-outputs.outputs.key-vault-name }}" \
+          --parameters containerAppsEnvironmentName="${{ steps.prod-infra-outputs.outputs.container-env-name }}" \
+          --output table
     
     - name: Run production health checks
       run: |

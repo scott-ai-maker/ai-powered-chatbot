@@ -14,6 +14,9 @@
     "imageTag": {
       "value": "stable"
     },
+    "deploymentMode": {
+      "value": "infrastructure-only"
+    },
     "adminEmail": {
       "value": "admin@example.com"
     },
