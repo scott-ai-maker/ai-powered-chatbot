@@ -455,23 +455,33 @@ jobs:
         echo "key-vault-name=$(echo "$OUTPUTS" | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
         echo "container-env-name=$(echo "$OUTPUTS" | jq -r '.containerAppsEnvironmentName.value')" >> $GITHUB_OUTPUT
     
-    - name: Deploy Container App
+    # Robust Three-Phase Deployment
+    - name: Deploy Infrastructure (Robust Three-Phase)
+      run: |
+        # Use the robust deployment script for comprehensive deployment
+        ./infrastructure/scripts/deploy-robust.sh \
+          --environment dev \
+          --location eastus2 \
+          --subscription "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
+          --admin-email "${{ vars.MAINTAINER_EMAIL }}" \
+          --force-cleanup \
+          --verbose
+
+    # Validate Deployment
+    - name: Validate Infrastructure Deployment
+      run: |
+        ./infrastructure/scripts/validate-deployment.sh \
+          --environment dev \
+          --subscription "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+
+    - name: Deploy Container App with Image
       run: |
         IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
         
-        # First try to delete any stuck Container App
-        az containerapp delete \
-          --name ai-career-mentor-dev-app \
-          --resource-group rg-ai-career-mentor-dev \
-          --yes || true
-        
-        # Wait a moment for cleanup
-        sleep 30
-        
-        # Deploy the Container App
+        # Deploy the Container App with the built image
         az deployment group create \
           --resource-group rg-ai-career-mentor-dev \
-          --name "containerapp-$(date +%Y%m%d-%H%M%S)" \
+          --name "containerapp-final-$(date +%Y%m%d-%H%M%S)" \
           --template-file ./infrastructure/bicep/containerapp.bicep \
           --parameters appName=ai-career-mentor \
           --parameters environment=dev \
@@ -602,14 +612,25 @@ jobs:
           echo "Also pushed as: $LATEST_TAG"
         fi
     
-    - name: Deploy core infrastructure (production)
+    # Robust Production Deployment
+    - name: Deploy Production Infrastructure (Robust Three-Phase)
       run: |
-        chmod +x ./infrastructure/scripts/deploy.sh
-        ./infrastructure/scripts/deploy.sh \
-          -e prod \
-          -s ${{ vars.AZURE_SUBSCRIPTION_ID }} \
-          -m ${{ vars.MAINTAINER_EMAIL }}
-    
+        # Use the robust deployment script for production
+        ./infrastructure/scripts/deploy-robust.sh \
+          --environment prod \
+          --location eastus2 \
+          --subscription "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
+          --admin-email "${{ vars.MAINTAINER_EMAIL }}" \
+          --force-cleanup \
+          --verbose
+
+    # Validate Production Deployment
+    - name: Validate Production Deployment
+      run: |
+        ./infrastructure/scripts/validate-deployment.sh \
+          --environment prod \
+          --subscription "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+
     - name: Get production infrastructure outputs
       id: prod-infra-outputs
       run: |
@@ -622,21 +643,12 @@ jobs:
         echo "container-registry=$(echo "$OUTPUTS" | jq -r '.containerRegistryLoginServer.value')" >> $GITHUB_OUTPUT
         echo "key-vault-name=$(echo "$OUTPUTS" | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
         echo "container-env-name=$(echo "$OUTPUTS" | jq -r '.containerAppsEnvironmentName.value')" >> $GITHUB_OUTPUT
-    
-    - name: Deploy Container App (production)
+
+    - name: Deploy Production Container App with Image
       run: |
         IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
         
-        # First try to delete any stuck Container App
-        az containerapp delete \
-          --name ai-career-mentor-prod-app \
-          --resource-group rg-ai-career-mentor-prod \
-          --yes || true
-        
-        # Wait a moment for cleanup
-        sleep 30
-        
-        # Deploy the Container App
+        # Deploy the Container App with the built image
         az deployment group create \
           --resource-group rg-ai-career-mentor-prod \
           --name "containerapp-$(date +%Y%m%d-%H%M%S)" \

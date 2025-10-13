@@ -29,9 +29,9 @@ param location string = resourceGroup().location
 @description('Container image tag to deploy')
 param imageTag string = 'latest'
 
-@description('Deployment mode: infrastructure-only or full')
-@allowed(['infrastructure-only', 'full'])
-param deploymentMode string = 'full'
+@description('Deployment mode: minimal, infrastructure, or full')
+@allowed(['minimal', 'infrastructure', 'full'])
+param deploymentMode string = 'infrastructure'
 
 @description('Administrator email for notifications')
 param adminEmail string
@@ -291,8 +291,8 @@ resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
   }
 }
 
-// Container Apps Environment
-resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
+// Container Apps Environment (only deploy in infrastructure or full mode)
+resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = if (deploymentMode != 'minimal') {
   name: containerEnvName
   location: location
   tags: commonTags
@@ -308,7 +308,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
   }
 }
 
-// Container App
+// Container App (only deploy in full mode)
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = if (deploymentMode == 'full') {
   name: containerAppName
   location: location
@@ -317,7 +317,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = if (deploymentM
     type: 'SystemAssigned'
   }
   properties: {
-    managedEnvironmentId: containerAppsEnvironment.id
+    managedEnvironmentId: containerAppsEnvironment!.id
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
@@ -566,4 +566,5 @@ output searchServiceEndpoint string = 'https://${searchService.name}.search.wind
 output cosmosDbEndpoint string = cosmosDbAccount.properties.documentEndpoint
 output resourceGroupName string = resourceGroup().name
 output containerAppName string = deploymentMode == 'full' ? containerApp!.name : containerAppName
+output containerAppsEnvironmentName string = deploymentMode != 'minimal' ? containerAppsEnvironment!.name : ''
 output environment string = environment

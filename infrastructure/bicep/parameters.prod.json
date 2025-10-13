@@ -15,7 +15,7 @@
       "value": "stable"
     },
     "deploymentMode": {
-      "value": "infrastructure-only"
+      "value": "minimal"
     },
     "adminEmail": {
       "value": "admin@example.com"
