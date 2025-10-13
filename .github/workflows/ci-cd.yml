@@ -455,7 +455,7 @@ jobs:
         echo "key-vault-name=$(echo "$OUTPUTS" | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
         echo "container-env-name=$(echo "$OUTPUTS" | jq -r '.containerAppsEnvironmentName.value')" >> $GITHUB_OUTPUT
     
-    # Robust Three-Phase Deployment
+    # Robust Three-Phase Deployment with Error Recovery
     - name: Deploy Infrastructure (Robust Three-Phase)
       run: |
         # Use the robust deployment script for comprehensive deployment
@@ -466,6 +466,13 @@ jobs:
           --admin-email "${{ vars.MAINTAINER_EMAIL }}" \
           --force-cleanup \
           --verbose
+
+    # Handle OpenAI provisioning state issues
+    - name: Fix OpenAI Provisioning Issues (if needed)
+      if: failure()
+      run: |
+        echo "Deployment failed, checking for OpenAI provisioning state issues..."
+        ./infrastructure/scripts/fix-openai-state.sh --retry-deployment
 
     # Validate Deployment
     - name: Validate Infrastructure Deployment
