@@ -1,0 +1,47 @@
+# Core Application Dependencies
+# =============================
+# This is the source file for requirements.txt
+# Use pip-compile to generate requirements.txt from this file:
+# pip-compile requirements.in
+
+# Web framework
+fastapi>=0.104.1,<0.105.0
+uvicorn[standard]>=0.24.0,<0.26.0
+
+# Data validation and settings
+pydantic>=2.5.0,<2.6.0
+pydantic-settings>=2.0.3,<2.1.0
+
+# Azure services
+azure-identity>=1.15.0,<1.16.0
+azure-keyvault-secrets>=4.7.0,<4.8.0
+azure-search-documents>=11.4.0,<11.5.0
+azure-cosmos>=4.5.1,<4.6.0
+
+# OpenAI
+openai>=1.3.7,<1.4.0
+
+# Async support
+httpx>=0.25.2,<0.26.0
+aiofiles>=23.2.1,<24.0.0
+aiohttp>=3.9.1,<3.10.0
+
+# Frontend (optional components)
+streamlit>=1.28.2,<1.29.0
+streamlit-chat>=0.1.1,<0.2.0
+streamlit-option-menu>=0.3.6,<0.4.0
+
+# Utilities
+python-dotenv>=1.0.0,<1.1.0
+structlog>=23.2.0,<24.0.0
+tenacity>=8.2.3,<8.3.0
+
+# Security
+cryptography>=41.0.7
+
+# Monitoring and observability
+azure-monitor-opentelemetry>=1.2.0,<1.3.0
+opentelemetry-api>=1.21.0,<1.22.0
+opentelemetry-sdk>=1.21.0,<1.22.0
+opentelemetry-instrumentation-fastapi>=0.42b0,<0.43b0
+opentelemetry-instrumentation-httpx>=0.42b0,<0.43b0

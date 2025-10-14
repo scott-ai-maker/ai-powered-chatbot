@@ -147,6 +147,8 @@ retry_infrastructure_deployment() {
 
 # Main function
 main() {
+    local retry_deployment=false
+    
     log_info "Starting OpenAI provisioning state fix..."
     
     # Parse command line arguments
@@ -160,6 +162,10 @@ main() {
             -g|--resource-group)
                 RESOURCE_GROUP_NAME="$2"
                 shift 2
+                ;;
+            --retry-deployment)
+                retry_deployment=true
+                shift
                 ;;
             *)
                 echo "Unknown option: $1"
@@ -175,7 +181,7 @@ main() {
     check_all_resources
     
     # If we're in a script or CI environment, also retry deployment
-    if [[ -n "${CI:-}" ]] || [[ "$1" == "--retry-deployment" ]]; then
+    if [[ -n "${CI:-}" ]] || [[ "$retry_deployment" == "true" ]]; then
         retry_infrastructure_deployment
     else
         log_info "Resource check complete. To retry deployment, run:"
