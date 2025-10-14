@@ -1,0 +1,297 @@
+name: Enterprise Notifications
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline", "Security Scan", "Performance Testing"]
+    types: [completed]
+  issues:
+    types: [opened, reopened, closed]
+  pull_request:
+    types: [opened, closed, ready_for_review]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      notification_type:
+        description: 'Type of notification to send'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - incident
+          - maintenance
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  notify-teams:
+    name: Enterprise Notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+    - name: Determine notification context
+      id: context
+      run: |
+        case "${{ github.event_name }}" in
+          workflow_run)
+            echo "type=workflow" >> $GITHUB_OUTPUT
+            echo "status=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
+            echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
+            ;;
+          issues)
+            echo "type=issue" >> $GITHUB_OUTPUT
+            echo "action=${{ github.event.action }}" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            ;;
+          pull_request)
+            echo "type=pull_request" >> $GITHUB_OUTPUT
+            echo "action=${{ github.event.action }}" >> $GITHUB_OUTPUT
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            ;;
+          release)
+            echo "type=release" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            ;;
+          workflow_dispatch)
+            echo "type=${{ inputs.notification_type }}" >> $GITHUB_OUTPUT
+            ;;
+        esac
+        
+        # Set severity based on event
+        if [[ "${{ github.event.workflow_run.conclusion }}" == "failure" ]]; then
+          echo "severity=critical" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "release" ]]; then
+          echo "severity=info" >> $GITHUB_OUTPUT
+        else
+          echo "severity=low" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Format notification message
+      id: message
+      run: |
+        case "${{ steps.context.outputs.type }}" in
+          workflow)
+            if [[ "${{ steps.context.outputs.status }}" == "success" ]]; then
+              ICON="✅"
+              COLOR="good"
+            else
+              ICON="❌"
+              COLOR="danger"
+            fi
+            
+            MESSAGE="$ICON **${{ steps.context.outputs.workflow_name }}** ${{ steps.context.outputs.status }}
+            
+            📋 **Details:**
+            - Repository: \`${{ github.repository }}\`
+            - Branch: \`${{ github.ref_name }}\`
+            - Commit: \`${{ github.sha }}\`
+            - Triggered by: @${{ github.actor }}
+            - Run: [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }})
+            
+            🕒 **Time:** $(date)"
+            ;;
+          
+          issue)
+            MESSAGE="🎫 **Issue ${{ github.event.action }}**: #${{ steps.context.outputs.issue_number }}
+            
+            📋 **Title:** ${{ github.event.issue.title }}
+            👤 **Author:** @${{ github.event.issue.user.login }}
+            🔗 **Link:** ${{ github.event.issue.html_url }}"
+            ;;
+          
+          pull_request)
+            if [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
+              ACTION="merged"
+              ICON="🎉"
+            else
+              ACTION="${{ github.event.action }}"
+              ICON="📝"
+            fi
+            
+            MESSAGE="$ICON **Pull Request $ACTION**: #${{ steps.context.outputs.pr_number }}
+            
+            📋 **Title:** ${{ github.event.pull_request.title }}
+            👤 **Author:** @${{ github.event.pull_request.user.login }}
+            🔀 **Branch:** \`${{ github.event.pull_request.head.ref }}\` → \`${{ github.event.pull_request.base.ref }}\`
+            🔗 **Link:** ${{ github.event.pull_request.html_url }}"
+            ;;
+          
+          release)
+            MESSAGE="🚀 **New Release Published**: ${{ steps.context.outputs.tag }}
+            
+            📋 **Release:** ${{ github.event.release.name }}
+            👤 **Author:** @${{ github.event.release.author.login }}
+            🔗 **Link:** ${{ github.event.release.html_url }}"
+            ;;
+          
+          test)
+            MESSAGE="🧪 **Test Notification**
+            
+            This is a test notification from the AI Career Mentor notification system.
+            
+            ✅ Notification system is working correctly"
+            ;;
+          
+          incident)
+            MESSAGE="🚨 **INCIDENT REPORTED**
+            
+            A production incident has been reported for the AI Career Mentor system.
+            
+            🆘 **Action Required:**
+            - Check system status
+            - Review error logs
+            - Escalate if necessary"
+            ;;
+          
+          maintenance)
+            MESSAGE="🔧 **Maintenance Notification**
+            
+            Scheduled maintenance for the AI Career Mentor system.
+            
+            📅 **Please Note:**
+            - System may be temporarily unavailable
+            - Users have been notified
+            - Monitor system after maintenance"
+            ;;
+        esac
+        
+        # Save message (escape newlines for GitHub Actions)
+        echo "content<<EOF" >> $GITHUB_OUTPUT
+        echo "$MESSAGE" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        echo "color=$COLOR" >> $GITHUB_OUTPUT
+    
+    - name: Send Slack notification
+      if: vars.SLACK_WEBHOOK_URL != ''
+      run: |
+        curl -X POST "${{ vars.SLACK_WEBHOOK_URL }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"username\": \"AI Career Mentor Bot\",
+            \"icon_emoji\": \":robot_face:\",
+            \"attachments\": [
+              {
+                \"color\": \"${{ steps.message.outputs.color }}\",
+                \"title\": \"AI Career Mentor - ${{ github.repository }}\",
+                \"text\": \"${{ steps.message.outputs.content }}\",
+                \"footer\": \"GitHub Actions\",
+                \"ts\": $(date +%s)
+              }
+            ]
+          }" || echo "Failed to send Slack notification"
+    
+    - name: Send Microsoft Teams notification
+      if: vars.TEAMS_WEBHOOK_URL != ''
+      run: |
+        curl -X POST "${{ vars.TEAMS_WEBHOOK_URL }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"@type\": \"MessageCard\",
+            \"@context\": \"https://schema.org/extensions\",
+            \"summary\": \"AI Career Mentor Notification\",
+            \"themeColor\": \"${{ steps.context.outputs.severity == 'critical' && 'FF0000' || '0078D4' }}\",
+            \"sections\": [
+              {
+                \"activityTitle\": \"AI Career Mentor - ${{ github.repository }}\",
+                \"activitySubtitle\": \"$(date)\",
+                \"text\": \"${{ steps.message.outputs.content }}\",
+                \"markdown\": true
+              }
+            ],
+            \"potentialActions\": [
+              {
+                \"@type\": \"OpenUri\",
+                \"name\": \"View on GitHub\",
+                \"targets\": [
+                  {
+                    \"os\": \"default\",
+                    \"uri\": \"${{ github.server_url }}/${{ github.repository }}\"
+                  }
+                ]
+              }
+            ]
+          }" || echo "Failed to send Teams notification"
+    
+    - name: Send Email notification (for critical events)
+      if: vars.MAINTAINER_EMAIL != '' && steps.context.outputs.severity == 'critical'
+      run: |
+        # This would integrate with your preferred email service
+        # For now, we'll create an issue as a fallback notification method
+        
+        echo "Critical event detected - would send email to: ${{ vars.MAINTAINER_EMAIL }}"
+        echo "Event: ${{ steps.context.outputs.type }}"
+        echo "Severity: ${{ steps.context.outputs.severity }}"
+        
+        # Create GitHub issue for critical events as backup notification
+        if [[ "${{ steps.context.outputs.type }}" == "workflow" && "${{ steps.context.outputs.status }}" == "failure" ]]; then
+          gh issue create \
+            --title "🚨 CRITICAL: Workflow Failure - ${{ steps.context.outputs.workflow_name }}" \
+            --body "**Critical workflow failure detected**
+        
+        **Details:**
+        - Workflow: ${{ steps.context.outputs.workflow_name }}
+        - Status: ${{ steps.context.outputs.status }}
+        - Branch: ${{ github.ref_name }}
+        - Commit: ${{ github.sha }}
+        - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        
+        **Action Required:**
+        1. Investigate the failure immediately
+        2. Check logs and error messages  
+        3. Fix issues and re-run if necessary
+        4. Close this issue when resolved
+        
+        **Automatic notification sent to:** ${{ vars.MAINTAINER_EMAIL }}" \
+            --assignee "${{ github.repository_owner }}" \
+            --label "critical,automated,workflow-failure" || echo "Failed to create issue"
+        fi
+      env:
+        GH_TOKEN: ${{ github.token }}
+    
+    - name: Update monitoring dashboard
+      run: |
+        # Log event for monitoring dashboard
+        echo "Event logged for monitoring:"
+        echo "- Type: ${{ steps.context.outputs.type }}"
+        echo "- Severity: ${{ steps.context.outputs.severity }}"
+        echo "- Repository: ${{ github.repository }}"
+        echo "- Timestamp: $(date -Iseconds)"
+        
+        # This could integrate with your monitoring system
+        # Example: Send to Application Insights, DataDog, etc.
+    
+    - name: Notification summary
+      run: |
+        echo "## 📬 Notification Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Event Type:** ${{ steps.context.outputs.type }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Severity:** ${{ steps.context.outputs.severity }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Channels Notified" >> $GITHUB_STEP_SUMMARY
+        if [[ -n "${{ vars.SLACK_WEBHOOK_URL }}" ]]; then
+          echo "- ✅ Slack" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⚠️ Slack (not configured)" >> $GITHUB_STEP_SUMMARY
+        fi
+        if [[ -n "${{ vars.TEAMS_WEBHOOK_URL }}" ]]; then
+          echo "- ✅ Microsoft Teams" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⚠️ Teams (not configured)" >> $GITHUB_STEP_SUMMARY
+        fi
+        if [[ "${{ steps.context.outputs.severity }}" == "critical" ]]; then
+          echo "- ✅ Email (critical events only)" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Message Content" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.message.outputs.content }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY

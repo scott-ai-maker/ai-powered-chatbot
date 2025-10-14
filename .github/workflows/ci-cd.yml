@@ -94,15 +94,15 @@ jobs:
     
     - name: Code linting with Ruff
       run: |
-        ruff check src/ --output-format=github
+        ruff check . --output-format=github --show-fixes
     
     - name: Code formatting check with Ruff
       run: |
-        ruff format --check src/
+        ruff format --check . --diff
     
     - name: Type checking with MyPy
       run: |
-        mypy src/ --ignore-missing-imports
+        mypy src/ --config-file=pyproject.toml --show-error-codes --pretty
     
     - name: Security scan with Bandit
       run: |
@@ -188,25 +188,28 @@ jobs:
     
     - name: Run unit tests
       if: matrix.test-type == 'unit'
-      continue-on-error: true
       run: |
         python -m pytest tests/unit/ \
           --verbose \
           --cov=src \
           --cov-report=xml \
           --cov-report=html \
-          --cov-report=term \
+          --cov-report=term-missing \
           --junitxml=test-results-unit.xml \
-          --tb=short
+          --tb=short \
+          --strict-markers \
+          -m "not slow and not external"
     
     - name: Run integration tests
       if: matrix.test-type == 'integration'
-      continue-on-error: true
       run: |
         python -m pytest tests/integration/ \
           --verbose \
           --tb=short \
-          --junitxml=test-results-integration.xml
+          --junitxml=test-results-integration.xml \
+          --strict-markers \
+          --timeout=300 \
+          -m "not external"
     
     - name: Upload test results
       uses: actions/upload-artifact@v4

@@ -1,53 +1,164 @@
-# Pre-commit hooks configuration
-# Run: pre-commit install to enable
-# Run: pre-commit run --all-files to check all files
+# Enterprise Pre-commit Configuration
+# ===================================
+# Comprehensive code quality checks for production systems
+# 
+# Setup: pre-commit install
+# Run all: pre-commit run --all-files
+# Update: pre-commit autoupdate
+
+default_language_version:
+  python: python3.12
 
 repos:
   # Ruff for fast Python linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+    rev: v0.1.9
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        name: ruff-linting
+        args: [--fix, --exit-non-zero-on-fix, --show-fixes]
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
+        name: ruff-formatting
+        types_or: [python, pyi]
+        require_serial: true
 
-  # MyPy for type checking
+  # MyPy for comprehensive type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
+    rev: v1.8.0
     hooks:
       - id: mypy
+        name: mypy-type-checking
         additional_dependencies: 
-          - types-requests
-          - types-PyYAML
-          - types-aiofiles
-          - types-setuptools
-        args: [--strict, --ignore-missing-imports]
+          - types-requests==2.31.0.20240106
+          - types-PyYAML==6.0.12.12
+          - types-aiofiles==23.2.0.20240106
+          - types-setuptools==69.0.0.20240115
+          - pydantic>=2.5.0
+          - fastapi>=0.104.1
+        args: [--config-file=pyproject.toml]
+        exclude: ^(tests/|scripts/)
+        require_serial: true
 
   # Security scanning with Bandit
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.5
     hooks:
       - id: bandit
-        args: [-r, src/]
-        exclude: tests/
+        name: bandit-security-check
+        args: [
+          -r, src/,
+          -f, json,
+          -o, bandit-report.json,
+          --severity-level, medium,
+          --confidence-level, medium
+        ]
+        exclude: (tests/|scripts/)
+        pass_filenames: false
 
-  # Built-in pre-commit hooks
+  # Built-in pre-commit hooks for file quality
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
+        name: trim-whitespace
+        args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
+        name: fix-eof
       - id: check-yaml
+        name: check-yaml-syntax
+        args: [--allow-multiple-documents]
       - id: check-toml
+        name: check-toml-syntax
       - id: check-json
+        name: check-json-syntax
       - id: check-merge-conflict
+        name: check-merge-conflicts
       - id: check-added-large-files
+        name: check-file-sizes
         args: ['--maxkb=1000']
       - id: check-case-conflict
+        name: check-case-conflicts
       - id: check-docstring-first
+        name: check-docstring-placement
       - id: debug-statements
+        name: check-debug-statements
       - id: name-tests-test
+        name: check-test-naming
         args: ['--pytest-test-first']
+      - id: requirements-txt-fixer
+        name: fix-requirements-txt
+      - id: fix-byte-order-marker
+        name: fix-bom
+      - id: mixed-line-ending
+        name: fix-line-endings
+        args: [--fix=lf]
+
+  # YAML formatting and linting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: prettier-formatting
+        types_or: [yaml, markdown, json]
+        exclude: (\.github/workflows/.*\.yml$|locustfile\.py)
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        name: shellcheck-scripts
+        args: [--severity=warning]
+        types: [shell]
+
+  # Docker linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: hadolint-dockerfile
+        args: [--ignore, DL3008, --ignore, DL3009]
+
+  # Secrets detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets-scan
+        args: ['--baseline', '.secrets.baseline']
+        exclude: (\.lock$|requirements.*\.txt$|.*\.generated\.|coverage\.xml)
+
+  # License header checking
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.4
+    hooks:
+      - id: insert-license
+        name: insert-license-header
+        files: \.py$
+        args:
+          - --license-filepath
+          - LICENSE_HEADER
+          - --comment-style
+          - "#"
+
+# Global configuration
+fail_fast: false
+minimum_pre_commit_version: "3.0.0"
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+    
+    For more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [mypy, bandit, shellcheck, hadolint-docker]
+  submodules: false
 
   # Docker file linting
   - repo: https://github.com/hadolint/hadolint

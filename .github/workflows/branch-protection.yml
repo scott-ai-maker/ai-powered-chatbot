@@ -1,0 +1,122 @@
+name: Branch Protection Enforcement
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  enforce-standards:
+    name: Enforce Enterprise Standards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate PR title and description
+      run: |
+        # Check PR title format
+        if ! echo "${{ github.event.pull_request.title }}" | grep -E "^(feat|fix|docs|style|refactor|test|chore|ci|perf|revert)(\(.+\))?!?: .+"; then
+          echo "❌ PR title must follow conventional commit format"
+          echo "Examples: 'feat: add new feature', 'fix(auth): resolve login issue'"
+          exit 1
+        fi
+        
+        # Check PR description
+        if [ -z "${{ github.event.pull_request.body }}" ]; then
+          echo "❌ PR description is required"
+          exit 1
+        fi
+        
+        # Check for required sections
+        PR_BODY="${{ github.event.pull_request.body }}"
+        if [[ ! "$PR_BODY" =~ "## Changes" ]] || [[ ! "$PR_BODY" =~ "## Testing" ]]; then
+          echo "❌ PR must include '## Changes' and '## Testing' sections"
+          exit 1
+        fi
+        
+        echo "✅ PR format validated successfully"
+    
+    - name: Check for security-sensitive changes
+      run: |
+        # Check for changes to security-critical files
+        SECURITY_FILES=(
+          "requirements*.txt"
+          "pyproject.toml"
+          "Dockerfile"
+          ".github/workflows/*.yml"
+          "infrastructure/**/*.bicep"
+          "src/config/**/*.py"
+          "src/auth/**/*.py"
+        )
+        
+        CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+        SECURITY_CHANGES=""
+        
+        for pattern in "${SECURITY_FILES[@]}"; do
+          if echo "$CHANGED_FILES" | grep -q "$pattern"; then
+            SECURITY_CHANGES="$SECURITY_CHANGES\n- $pattern"
+          fi
+        done
+        
+        if [ -n "$SECURITY_CHANGES" ]; then
+          echo "🔐 Security-sensitive files changed:"
+          echo -e "$SECURITY_CHANGES"
+          echo "Additional review required for security team"
+          echo "security_review_required=true" >> $GITHUB_OUTPUT
+        else
+          echo "security_review_required=false" >> $GITHUB_OUTPUT
+        fi
+      id: security-check
+    
+    - name: Require security review label
+      if: steps.security-check.outputs.security_review_required == 'true'
+      run: |
+        if ! echo "${{ join(github.event.pull_request.labels.*.name, ' ') }}" | grep -q "security-review"; then
+          echo "❌ Security review label required for this PR"
+          echo "Please add the 'security-review' label"
+          exit 1
+        fi
+    
+    - name: Check branch protection compliance
+      run: |
+        # Ensure PR is not from main/develop to main/develop
+        if [[ "${{ github.head_ref }}" == "main" || "${{ github.head_ref }}" == "develop" ]]; then
+          echo "❌ Cannot create PR from protected branch"
+          exit 1
+        fi
+        
+        # Check branch naming convention
+        if ! echo "${{ github.head_ref }}" | grep -E "^(feature|bugfix|hotfix|release)\/[a-z0-9-]+$"; then
+          echo "❌ Branch must follow naming convention: feature/*, bugfix/*, hotfix/*, or release/*"
+          exit 1
+        fi
+        
+        echo "✅ Branch protection compliance validated"
+    
+    - name: Enterprise compliance summary
+      run: |
+        echo "## 🏢 Enterprise Compliance Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**PR:** #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Author:** @${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** \`${{ github.head_ref }}\` → \`${{ github.base_ref }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Compliance Checks" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ PR title format validated" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ PR description present" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Branch naming convention" >> $GITHUB_STEP_SUMMARY
+        if [[ "${{ steps.security-check.outputs.security_review_required }}" == "true" ]]; then
+          echo "- 🔐 Security review required" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ✅ No security review needed" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Status:** Ready for review" >> $GITHUB_STEP_SUMMARY
