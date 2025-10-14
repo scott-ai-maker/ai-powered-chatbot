@@ -146,8 +146,7 @@ max-complexity = 12
 [format]
 # Formatting configuration
 quote-style = "double"
-indent-style = "space"
-skip-string-normalization = false
+indent-style = "space" 
 line-ending = "lf"
 
 # Preview formatting features
