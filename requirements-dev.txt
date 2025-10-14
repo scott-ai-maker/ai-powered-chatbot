@@ -11,11 +11,11 @@ ruff==0.1.9
 mypy==1.8.0
 pre-commit==3.6.0
 
-# Security and safety (Updated versions to resolve dependency conflicts)
+# Security scanning (Simplified to avoid packaging dependency conflicts)
 bandit[toml]==1.7.5
 pbr==7.0.1  # Required by bandit
-safety==2.3.5
-pip-audit==2.7.3
+pip-audit==2.7.3  # Primary vulnerability scanner (replaces safety)
+# Note: safety temporarily removed due to packaging version conflicts with pip-audit
 
 # Dependency management
 pip-tools==7.3.0
